@@ -1,0 +1,57 @@
+# Yatrik
+
+Flutter travel app backed by Firebase Authentication and Cloud Firestore.
+Hotel listings, room inventory, bookings, reviews, customer profiles, and saved
+stays are stored in Firestore.
+
+## Firebase setup for the Android demo
+
+1. In Firebase Console, enable **Authentication → Email/Password**.
+2. Under **Authentication → Users**, create an admin user and copy its UID.
+   Keep the password private.
+3. In Firestore, create `admins/{UID}` using that UID as the document ID, with
+   the Boolean field `isAdmin` set to `true`.
+4. Publish [`firestore.rules`](./firestore.rules) in **Firestore → Rules**.
+   The rules allow public hotel/room/review reads, admin-only catalog changes,
+   and owner-only access to customer data.
+5. Sign in to the app's Admin panel and manage hotels and room categories
+   there. Hotel documents use:
+   - `title` (String)
+   - `location` (String)
+   - `rating` (Number, 0–5)
+   - `price` (Number, INR per night)
+   - `imageUrl` (String; optional)
+   - `description`, `propertyType`, `amenities` (optional)
+6. In **Room Inventory**, add at least one room category for each hotel that
+   customers should be able to book. Its rate and available units are managed
+   separately from the hotel listing. Creating a booking reserves one unit;
+   cancelling the booking restores it.
+7. Customers create accounts with the app's sign-up screen. The app writes
+   their profile to `users/{uid}` and saves favourites under
+   `users/{uid}/savedStays/{hotelId}`. Bookings are stored in `bookings`;
+   customer reviews are stored in `reviews`.
+
+The app's payment choices are for presentation only. The app does not charge
+customers or connect to a payment provider.
+
+To publish the rules using the Firebase CLI instead of the Console:
+
+```bash
+firebase deploy --only firestore:rules --project=yatrik-e2afd
+```
+
+FlutterFire configuration for this Firebase project:
+
+```bash
+firebase login
+dart pub global run flutterfire_cli:flutterfire configure --project=yatrik-e2afd --platforms=android,web
+```
+
+Firebase-generated files (`lib/firebase_options.dart`,
+`android/app/google-services.json`, and `ios/Runner/GoogleService-Info.plist`)
+are intentionally excluded from this repository. Run the FlutterFire command
+above after cloning, before building the app.
+
+Run the app locally in Chrome with `flutter run -d chrome`, or select an
+Android device in Android Studio. Firebase Hosting is not required; the app
+needs internet access to read and write Firestore data.

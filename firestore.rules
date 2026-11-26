@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function reservesRoom(roomId, bookingId) {
+      let roomPath = /databases/$(database)/documents/rooms/$(roomId);
+      let bookingPath = /databases/$(database)/documents/bookings/$(bookingId);
+      return signedIn()
+        && !exists(bookingPath)
+        && existsAfter(bookingPath)
+        && getAfter(bookingPath).data.userId == request.auth.uid
+        && getAfter(bookingPath).data.roomId == roomId
+        && getAfter(bookingPath).data.status == 'PENDING'
+        && get(roomPath).data.units > 0
+        && getAfter(roomPath).data.units == get(roomPath).data.units - 1
+        && getAfter(roomPath).data.lastBookingId == bookingId;
+    }
+
+    function returnsRoom(roomId) {
+      let bookingId = request.resource.data.lastBookingId;
+      let bookingPath = /databases/$(database)/documents/bookings/$(bookingId);
+      return signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['units', 'lastBookingId'])
+        && request.resource.data.units == resource.data.units + 1
+        && get(bookingPath).data.userId == request.auth.uid
+        && get(bookingPath).data.roomId == roomId
+        && get(bookingPath).data.status != 'CANCELLED'
+        && getAfter(bookingPath).data.status == 'CANCELLED'
+        && getAfter(bookingPath).data.diff(get(bookingPath).data).affectedKeys().hasOnly(['status']);
+    }
+
+    match /hotels/{hotelId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['units', 'lastBookingId'])
+          && (
+            reservesRoom(roomId, request.resource.data.lastBookingId)
+            || returnsRoom(roomId)
+          )
+        );
+    }
+
+    match /users/{userId} {
+      allow read, create, update: if isAdmin()
+        || (signedIn() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+
+      match /savedStays/{hotelId} {
+        allow read, create, delete: if isAdmin()
+          || (signedIn() && request.auth.uid == userId);
+        allow update: if isAdmin()
+          || (signedIn() && request.auth.uid == userId);
+      }
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.hotelId
+          == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.hotelId
+        && reservesRoom(request.resource.data.roomId, bookingId);
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'CANCELLED'
+          && resource.data.status != 'CANCELLED'
+          && getAfter(
+            /databases/$(database)/documents/rooms/$(resource.data.roomId)
+          ).data.units
+            == get(
+              /databases/$(database)/documents/rooms/$(resource.data.roomId)
+            ).data.units + 1
+          && getAfter(
+            /databases/$(database)/documents/rooms/$(resource.data.roomId)
+          ).data.lastBookingId == bookingId
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() > 0;
+      allow update: if isAdmin();
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /admins/{adminId} {
+      allow get: if request.auth != null && request.auth.uid == adminId;
+      allow list, create, update, delete: if false;
+    }
+  }
+}
