@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yatrik/data/hotel_repository.dart';
 import 'package:yatrik/main.dart';
 import 'package:yatrik/screens/admin/admin_container_screen.dart';
+import 'package:yatrik/screens/admin/admin_bookings_screen.dart';
 import 'package:yatrik/screens/admin/admin_hotels_screen.dart';
 import 'package:yatrik/screens/admin/admin_inventory_screen.dart';
 import 'package:yatrik/screens/date_guest_picker_screen.dart';
@@ -59,6 +60,26 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
     expect(find.text('Dashboard Overview'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('Admin can filter bookings from the filter sheet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminBookingsScreen(repository: _FakeHotelRepository()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Filter bookings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Filter Bookings'), findsOneWidget);
+    await tester.tap(find.text('Pending').last);
+    await tester.tap(find.text('APPLY FILTERS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No bookings for this filter.'), findsOneWidget);
   });
 
   testWidgets('Date and guest picker returns the selected stay details', (
@@ -185,7 +206,7 @@ void main() {
       MaterialApp(home: AdminInventoryScreen(repository: repository)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add room'));
+    await tester.tap(find.text('Add category').first);
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -218,6 +239,30 @@ void main() {
     expect(find.text('Azure Haven Resort'), findsOneWidget);
   });
 
+  testWidgets('Hotel room selection carries guests and dates to review', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_mainContainerApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Book Now').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select your room'), findsOneWidget);
+    expect(find.text('Standard Room'), findsOneWidget);
+    await tester.ensureVisible(find.text('BOOK NOW'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('BOOK NOW'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review Booking'), findsOneWidget);
+    expect(find.text('2 Adults, 0 Children · 2 nights'), findsOneWidget);
+  });
+
   testWidgets('Saved escapes require a signed-in account', (tester) async {
     tester.view.physicalSize = const Size(320, 700);
     tester.view.devicePixelRatio = 1;
@@ -239,6 +284,22 @@ void main() {
     await tester.tap(find.text('City, Landmark, or Name'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Filters'), findsOneWidget);
+    await tester.tap(find.text('Villa'));
+    await tester.ensureVisible(find.text('SHOW RESULTS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SHOW RESULTS'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alpine Glass Loft'), findsAtLeastNWidgets(1));
+    expect(find.text('Azure Vista Resort'), findsNothing);
+    await tester.ensureVisible(find.text('Reset All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset All'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+    expect(find.text('Azure Vista Resort'), findsAtLeastNWidgets(1));
+
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.text('Recommended for You'), findsOneWidget);
@@ -250,6 +311,17 @@ class _FakeHotelRepository implements HotelRepository {
   Map<String, Object?>? addedHotel;
   RoomType? savedRoom;
   int seedDemoCatalogCalls = 0;
+  final List<RoomType> _roomList = [
+    const RoomType(
+      id: 'room-1',
+      hotelId: 'hotel-1',
+      hotelTitle: 'Azure Vista Resort',
+      title: 'Standard Room',
+      price: 2400,
+      units: 3,
+      description: 'Courtyard view · King bed',
+    ),
+  ];
   final List<Hotel> _hotelList = [
     const Hotel(
       id: 'hotel-1',
@@ -266,6 +338,7 @@ class _FakeHotelRepository implements HotelRepository {
       rating: 4.8,
       price: 3200,
       imageUrl: '',
+      propertyType: 'Villa',
     ),
     const Hotel(
       id: 'hotel-3',
@@ -299,12 +372,16 @@ class _FakeHotelRepository implements HotelRepository {
   }
 
   @override
-  Stream<List<RoomType>> watchRooms({String? hotelId}) =>
-      Stream.value(const []);
+  Stream<List<RoomType>> watchRooms({String? hotelId}) => Stream.value(
+    _roomList
+        .where((room) => hotelId == null || room.hotelId == hotelId)
+        .toList(),
+  );
 
   @override
   Future<void> saveRoom(RoomType room) async {
     savedRoom = room;
+    _roomList.add(room);
   }
 
   @override

@@ -161,7 +161,7 @@ class SavedEscapesScreen extends StatelessWidget {
                                                   ),
                                             ),
                                           ),
-                                          child: const Text('View stay'),
+                                          child: const Text('Book now'),
                                         ),
                                       ),
                                     ],

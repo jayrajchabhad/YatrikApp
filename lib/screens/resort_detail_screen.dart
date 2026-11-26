@@ -5,6 +5,8 @@ import '../data/hotel_repository.dart';
 import '../resources/app_images.dart';
 import '../theme/app_theme.dart';
 import 'choose_sanctuary_screen.dart';
+import 'date_guest_picker_screen.dart';
+import 'review_booking_screen.dart';
 
 class ResortDetailScreen extends StatefulWidget {
   const ResortDetailScreen({
@@ -21,6 +23,45 @@ class ResortDetailScreen extends StatefulWidget {
 }
 
 class _ResortDetailScreenState extends State<ResortDetailScreen> {
+  String? _selectedRoomId;
+  DateTime _checkIn = DateTime.now().add(const Duration(days: 1));
+  DateTime _checkOut = DateTime.now().add(const Duration(days: 3));
+  int _adults = 2;
+  int _children = 0;
+
+  int get _nights => _checkOut.difference(_checkIn).inDays;
+
+  Future<void> _pickDates() async {
+    final result = await Navigator.push<DatePickerResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DateGuestPickerScreen(
+          initialStartDate: _checkIn,
+          initialEndDate: _checkOut,
+          initialAdults: _adults,
+          initialChildren: _children,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _checkIn = result.checkInDate;
+      _checkOut = result.checkOutDate;
+      _adults = result.adults;
+      _children = result.children;
+    });
+  }
+
+  RoomType? _selectedRoom(List<RoomType> rooms) {
+    for (final room in rooms) {
+      if (room.units > 0 && room.id == _selectedRoomId) return room;
+    }
+    for (final room in rooms) {
+      if (room.units > 0) return room;
+    }
+    return null;
+  }
+
   Future<void> _writeReview() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -172,13 +213,31 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 28),
-                const Text(
-                  'Available rooms',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
-                  ),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Select your room',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChooseSanctuaryScreen(
+                            hotel: hotel,
+                            repository: widget.repository,
+                          ),
+                        ),
+                      ),
+                      child: const Text('View all'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 StreamBuilder<List<RoomType>>(
@@ -200,7 +259,19 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                         style: TextStyle(color: AppColors.textSecondary),
                       );
                     }
-                    return Column(children: rooms.map(_roomCard).toList());
+                    final selectedRoom = _selectedRoom(rooms);
+                    return Column(
+                      children: [
+                        ...rooms.map(
+                          (room) => _roomCard(
+                            room,
+                            selected: selectedRoom?.id == room.id,
+                          ),
+                        ),
+                        if (selectedRoom != null)
+                          _bookingSummary(selectedRoom),
+                      ],
+                    );
                   },
                 ),
                 const SizedBox(height: 28),
@@ -271,40 +342,160 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
     );
   }
 
-  Widget _roomCard(RoomType room) => Card(
+  Widget _roomCard(RoomType room, {required bool selected}) {
+    final fallbackAsset =
+        room.title.toLowerCase().contains('deluxe') ||
+            room.title.toLowerCase().contains('suite')
+        ? AppImages.assetDeluxeOcean
+        : AppImages.assetStandardRoom;
+    return Card(
     margin: const EdgeInsets.only(bottom: 12),
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: BorderSide(
+        color: selected ? AppColors.primaryNavy : AppColors.borderLight,
+        width: selected ? 1.5 : 1,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppImages.buildImage(
+          pathOrUrl: room.imageUrl.trim().isEmpty
+              ? fallbackAsset
+              : room.imageUrl.trim(),
+          fallbackUrl: widget.hotel.imageUrl,
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      room.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '₹${room.price.toStringAsFixed(0)} / night',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              if (room.description.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  room.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                room.units > 0 ? '${room.units} available' : 'Sold out',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: room.units <= 0
+                      ? null
+                      : () => setState(() => _selectedRoomId = room.id),
+                  child: Text(selected ? 'SELECTED' : 'SELECT ROOM'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  }
+
+  Widget _bookingSummary(RoomType room) => Card(
+    margin: const EdgeInsets.only(top: 6),
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'YOUR STAY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: Text(
-                  room.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'CHECK-IN',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(_dateString(_checkIn)),
+                  ],
                 ),
               ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'CHECK-OUT',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(_dateString(_checkOut)),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Change dates and guests',
+                onPressed: _pickDates,
+                icon: const Icon(Icons.edit_calendar_outlined),
+              ),
+            ],
+          ),
+          Text(
+            '$_adults Adults, $_children Children · $_nights nights',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          const Divider(height: 22),
+          Row(
+            children: [
+              Expanded(child: Text('₹${room.price.toStringAsFixed(0)} × $_nights nights')),
               Text(
-                '₹${room.price.toStringAsFixed(0)} / night',
+                '₹${(room.price * _nights).toStringAsFixed(0)}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          if (room.description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(room.description),
-          ],
-          const SizedBox(height: 10),
-          Text(
-            room.units > 0 ? '${room.units} available' : 'Sold out',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -313,17 +504,25 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                   : () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ChooseSanctuaryScreen(
+                        builder: (_) => ReviewBookingScreen(
                           hotel: widget.hotel,
+                          room: room,
                           repository: widget.repository,
+                          initialCheckIn: _checkIn,
+                          initialCheckOut: _checkOut,
+                          initialAdults: _adults,
+                          initialChildren: _children,
                         ),
                       ),
                     ),
-              child: const Text('Select room'),
+              child: const Text('BOOK NOW'),
             ),
           ),
         ],
       ),
     ),
   );
+
+  String _dateString(DateTime date) =>
+      '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}';
 }

@@ -186,7 +186,9 @@ class _AdminHotelsScreenState extends State<AdminHotelsScreen> {
                         )
                       : const Icon(Icons.auto_awesome_outlined),
                   label: Text(
-                    _isSeeding ? 'Adding demo data…' : 'Add demo hotels & rooms',
+                    _isSeeding
+                        ? 'Adding demo data…'
+                        : 'Add demo hotels & rooms',
                   ),
                 ),
               ),
@@ -284,8 +286,8 @@ class _AdminHotelsScreenState extends State<AdminHotelsScreen> {
                     color: const Color(0xFFD1FAE5),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'LIVE',
+                  child: Text(
+                    hotel.propertyType.toUpperCase(),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,

@@ -40,6 +40,8 @@ class _AdminContainerScreenState extends State<AdminContainerScreen> {
         repository: widget.hotelRepository,
         onAddHotel: () => setState(() => _currentIndex = 1),
         onOpenBookings: () => setState(() => _currentIndex = 2),
+        onNewBooking: () =>
+            showAdminNewBookingSheet(context, widget.hotelRepository),
       ),
       AdminHotelsScreen(repository: widget.hotelRepository),
       AdminBookingsScreen(repository: widget.hotelRepository),

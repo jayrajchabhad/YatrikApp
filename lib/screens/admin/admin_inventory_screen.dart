@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/hotel_repository.dart';
+import '../../resources/app_images.dart';
 import '../../theme/app_theme.dart';
 
 class AdminInventoryScreen extends StatelessWidget {
@@ -113,17 +114,51 @@ class AdminInventoryScreen extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               final rooms = roomSnapshot.data!;
+              final totalUnits = rooms.fold<int>(
+                0,
+                (total, room) => total + room.units,
+              );
+              final averageRate = rooms.isEmpty
+                  ? 0.0
+                  : rooms.fold<double>(
+                          0,
+                          (total, room) => total + room.price,
+                        ) /
+                        rooms.length;
               return ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text(
-                    '${rooms.fold<int>(0, (total, room) => total + room.units)} rooms across ${hotels.length} hotels',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                    ),
+                  _InventoryMetricCard(
+                    label: 'TOTAL INVENTORY',
+                    value: '$totalUnits units',
+                    icon: Icons.inventory_2_outlined,
                   ),
-                  const SizedBox(height: 16),
+                  _InventoryMetricCard(
+                    label: 'AVERAGE NIGHTLY RATE',
+                    value: '₹${averageRate.toStringAsFixed(0)}',
+                    subtitle: '${rooms.length} categories across ${hotels.length} hotels',
+                    icon: Icons.currency_rupee_rounded,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Categories',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _editRoom(context, hotels),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add category'),
+                      ),
+                    ],
+                  ),
                   if (rooms.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 40),
@@ -136,31 +171,108 @@ class AdminInventoryScreen extends StatelessWidget {
                   else
                     ...rooms.map(
                       (room) => Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          title: Text(
-                            room.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            '${room.hotelTitle} · ₹${room.price.toStringAsFixed(0)}/night · ${room.units} units',
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (action) {
-                              if (action == 'edit') {
-                                _editRoom(context, hotels, room: room);
-                              } else {
-                                _deleteRoom(context, room);
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(value: 'edit', child: Text('Edit')),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
+                        margin: const EdgeInsets.only(bottom: 14),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppImages.buildImage(
+                              pathOrUrl: room.imageUrl.trim().isEmpty
+                                  ? AppImages.assetStandardRoom
+                                  : room.imageUrl.trim(),
+                              height: 150,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          room.title,
+                                          style: const TextStyle(
+                                            fontSize: 19,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primaryDark,
+                                          ),
+                                        ),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        onSelected: (action) {
+                                          if (action == 'edit') {
+                                            _editRoom(
+                                              context,
+                                              hotels,
+                                              room: room,
+                                            );
+                                          } else {
+                                            _deleteRoom(context, room);
+                                          }
+                                        },
+                                        itemBuilder: (context) => const [
+                                          PopupMenuItem(
+                                            value: 'edit',
+                                            child: Text('Edit'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    room.hotelTitle,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  if (room.description.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      room.description,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                  const Divider(height: 22),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _InventoryField(
+                                          label: 'UNIT COUNT',
+                                          value: '${room.units}',
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: _InventoryField(
+                                          label: 'NIGHTLY RATE',
+                                          value:
+                                              '₹${room.price.toStringAsFixed(0)}',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => _editRoom(
+                                        context,
+                                        hotels,
+                                        room: room,
+                                      ),
+                                      child: const Text('VIEW DETAILS'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -185,10 +297,95 @@ class AdminInventoryScreen extends StatelessWidget {
           }
         },
         icon: const Icon(Icons.add),
-        label: const Text('Add room'),
+        label: const Text('Add category'),
       ),
     );
   }
+}
+
+class _InventoryMetricCard extends StatelessWidget {
+  const _InventoryMetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.subtitle,
+  });
+
+  final String label;
+  final String value;
+  final String? subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Icon(icon, size: 30, color: AppColors.borderLight),
+        ],
+      ),
+    ),
+  );
+}
+
+class _InventoryField extends StatelessWidget {
+  const _InventoryField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.5,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+    ],
+  );
 }
 
 class _RoomEditorSheet extends StatefulWidget {

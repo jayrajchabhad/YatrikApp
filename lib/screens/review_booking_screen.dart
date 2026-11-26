@@ -13,24 +13,43 @@ class ReviewBookingScreen extends StatefulWidget {
     required this.hotel,
     required this.room,
     this.repository = const FirestoreHotelRepository(),
+    this.initialCheckIn,
+    this.initialCheckOut,
+    this.initialAdults = 2,
+    this.initialChildren = 0,
   });
 
   final Hotel hotel;
   final RoomType room;
   final HotelRepository repository;
+  final DateTime? initialCheckIn;
+  final DateTime? initialCheckOut;
+  final int initialAdults;
+  final int initialChildren;
 
   @override
   State<ReviewBookingScreen> createState() => _ReviewBookingScreenState();
 }
 
 class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
-  late DateTime _checkIn = DateTime.now().add(const Duration(days: 1));
-  late DateTime _checkOut = DateTime.now().add(const Duration(days: 3));
-  int _adults = 2;
-  int _children = 0;
+  late DateTime _checkIn;
+  late DateTime _checkOut;
+  late int _adults;
+  late int _children;
   String _paymentMethod = 'Credit / Debit Card (demo)';
   bool _saving = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIn =
+        widget.initialCheckIn ?? DateTime.now().add(const Duration(days: 1));
+    _checkOut =
+        widget.initialCheckOut ?? DateTime.now().add(const Duration(days: 3));
+    _adults = widget.initialAdults;
+    _children = widget.initialChildren;
+  }
 
   int get _nights => _checkOut.difference(_checkIn).inDays;
   double get _total => widget.room.price * _nights;
@@ -160,9 +179,7 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
                       const SizedBox(height: 3),
                       Text(
                         '${widget.room.title} · ${widget.hotel.location}',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 14),
                       Row(

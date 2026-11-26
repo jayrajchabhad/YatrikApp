@@ -9,11 +9,13 @@ class AdminDashboardScreen extends StatelessWidget {
     this.repository = const FirestoreHotelRepository(),
     this.onAddHotel,
     this.onOpenBookings,
+    this.onNewBooking,
   });
 
   final HotelRepository repository;
   final VoidCallback? onAddHotel;
   final VoidCallback? onOpenBookings;
+  final VoidCallback? onNewBooking;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,9 @@ class AdminDashboardScreen extends StatelessWidget {
                 final pendingCount = bookings
                     .where((booking) => booking.status == 'PENDING')
                     .length;
+                final pendingBookings = bookings
+                    .where((booking) => booking.status == 'PENDING')
+                    .toList();
                 final bookingValue = bookings
                     .where((booking) => booking.status != 'CANCELLED')
                     .fold<double>(0, (total, booking) => total + booking.total);
@@ -129,6 +134,54 @@ class AdminDashboardScreen extends StatelessWidget {
                             const SizedBox(height: 14),
                             Row(
                               children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.inputBackground,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.event_available_outlined,
+                                    color: AppColors.primaryNavy,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        pendingBookings.isEmpty
+                                            ? 'Booking Requests'
+                                            : pendingBookings.first.guestName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        pendingBookings.isEmpty
+                                            ? 'No pending requests'
+                                            : '${pendingBookings.first.roomTitle} · ${pendingBookings.first.hotelTitle}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     onPressed: onAddHotel,
@@ -139,12 +192,12 @@ class AdminDashboardScreen extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: onOpenBookings,
+                                    onPressed: onNewBooking,
                                     icon: const Icon(
-                                      Icons.event_note_outlined,
+                                      Icons.add,
                                       size: 18,
                                     ),
-                                    label: const Text('Bookings'),
+                                    label: const Text('New Booking'),
                                   ),
                                 ),
                               ],
