@@ -1,113 +1,176 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 
 class DatePickerResult {
-  final String dateRangeText; // e.g. "Oct 12 — Oct 16, 2024"
-  final String checkInDate; // e.g. "Oct 12, 2024"
-  final String checkOutDate; // e.g. "Oct 16, 2024"
-  final int adults;
-  final int children;
-
-  DatePickerResult({
+  const DatePickerResult({
     required this.dateRangeText,
     required this.checkInDate,
     required this.checkOutDate,
     required this.adults,
     required this.children,
   });
+
+  final String dateRangeText;
+  final DateTime checkInDate;
+  final DateTime checkOutDate;
+  final int adults;
+  final int children;
 }
 
 class DateGuestPickerScreen extends StatefulWidget {
-  const DateGuestPickerScreen({super.key});
+  const DateGuestPickerScreen({
+    super.key,
+    this.initialStartDate,
+    this.initialEndDate,
+    this.initialAdults = 2,
+    this.initialChildren = 0,
+  });
+
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
+  final int initialAdults;
+  final int initialChildren;
 
   @override
   State<DateGuestPickerScreen> createState() => _DateGuestPickerScreenState();
 }
 
 class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
-  int _adults = 2;
-  int _children = 0;
+  static const _monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  static const _monthAbbreviations = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
-  int _selectedStartDay = 12;
-  int _selectedEndDay = 16;
-  int _currentMonthIndex = 0; // 0: Oct 2024, 1: Nov 2024
+  late DateTime _today;
+  late DateTime _displayedMonth;
+  late DateTime _selectedStartDate;
+  DateTime? _selectedEndDate;
+  late int _adults;
+  late int _children;
 
-  final List<String> _months = ['October 2024', 'November 2024'];
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _today = DateTime(now.year, now.month, now.day);
+    final start = _dateOnly(
+      widget.initialStartDate ?? _today.add(const Duration(days: 1)),
+    );
+    _selectedStartDate = start.isBefore(_today)
+        ? _today
+        : start;
+    final end = widget.initialEndDate == null
+        ? _selectedStartDate.add(const Duration(days: 2))
+        : _dateOnly(widget.initialEndDate!);
+    _selectedEndDate = end.isAfter(_selectedStartDate) ? end : null;
+    _displayedMonth = DateTime(
+      _selectedStartDate.year,
+      _selectedStartDate.month,
+    );
+    _adults = widget.initialAdults < 1 ? 1 : widget.initialAdults;
+    _children = widget.initialChildren < 0 ? 0 : widget.initialChildren;
+  }
 
-  void _onDaySelected(int day) {
+  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  bool _isSameDay(DateTime first, DateTime second) =>
+      first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
+
+  String _formatDate(DateTime date) =>
+      '${_monthAbbreviations[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
+
+  void _selectDate(DateTime date) {
+    if (date.isBefore(_today)) return;
     setState(() {
-      if (_selectedStartDay == 0 || (_selectedStartDay != 0 && _selectedEndDay != 0)) {
-        _selectedStartDay = day;
-        _selectedEndDay = 0;
-      } else if (day < _selectedStartDay) {
-        _selectedStartDay = day;
-        _selectedEndDay = 0;
+      if (_selectedEndDate != null ||
+          !date.isAfter(_selectedStartDate)) {
+        _selectedStartDate = date;
+        _selectedEndDate = null;
       } else {
-        _selectedEndDay = day;
+        _selectedEndDate = date;
       }
     });
   }
 
-  String get _currentMonthName => _months[_currentMonthIndex].split(' ')[0];
-  String get _currentYear => _months[_currentMonthIndex].split(' ')[1];
-
   void _applySelection() {
-    final startDay = _selectedStartDay > 0 ? _selectedStartDay : 12;
-    final endDay = _selectedEndDay > 0
-        ? _selectedEndDay
-        : (startDay + 4 > 31 ? 31 : startDay + 4);
-
-    final monthName = _currentMonthName.substring(0, 3);
-    final year = _currentYear;
-
-    final startDayStr = startDay.toString().padLeft(2, '0');
-    final endDayStr = endDay.toString().padLeft(2, '0');
-
-    final dateRangeText = '$monthName $startDayStr — $monthName $endDayStr, $year';
-    final checkIn = '$monthName $startDayStr, $year';
-    final checkOut = '$monthName $endDayStr, $year';
-
-    final result = DatePickerResult(
-      dateRangeText: dateRangeText,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      adults: _adults,
-      children: _children,
+    final end = _selectedEndDate;
+    if (end == null) return;
+    final range = _selectedStartDate.month == end.month &&
+            _selectedStartDate.year == end.year
+        ? '${_monthAbbreviations[_selectedStartDate.month - 1]} ${_selectedStartDate.day.toString().padLeft(2, '0')} - ${end.day.toString().padLeft(2, '0')}, ${end.year}'
+        : '${_formatDate(_selectedStartDate)} - ${_formatDate(end)}';
+    Navigator.pop(
+      context,
+      DatePickerResult(
+        dateRangeText: range,
+        checkInDate: _selectedStartDate,
+        checkOutDate: end,
+        adults: _adults,
+        children: _children,
+      ),
     );
-
-    Navigator.pop(context, result);
   }
 
   @override
   Widget build(BuildContext context) {
+    final latestMonth = DateTime(_today.year + 2, _today.month);
+    final currentMonth = DateTime(_today.year, _today.month);
+    final canGoBack = _displayedMonth.isAfter(currentMonth);
+    final canGoForward = _displayedMonth.isBefore(latestMonth);
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: 'Close',
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Select Dates & Accompaniments',
+          'Select Dates & Guests',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
             color: AppColors.primaryDark,
           ),
         ),
-        centerTitle: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
-            // Month Header with Chevrons
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _months[_currentMonthIndex],
+                  '${_monthNames[_displayedMonth.month - 1]} ${_displayedMonth.year}',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -116,35 +179,35 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
                 ),
                 Row(
                   children: [
-                    InkWell(
-                      onTap: () {
-                        if (_currentMonthIndex > 0) {
-                          setState(() => _currentMonthIndex--);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: _buildCircleArrow(Icons.chevron_left),
+                    _monthButton(
+                      icon: Icons.chevron_left,
+                      enabled: canGoBack,
+                      onPressed: () => setState(
+                        () => _displayedMonth = DateTime(
+                          _displayedMonth.year,
+                          _displayedMonth.month - 1,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    InkWell(
-                      onTap: () {
-                        if (_currentMonthIndex < _months.length - 1) {
-                          setState(() => _currentMonthIndex++);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: _buildCircleArrow(Icons.chevron_right),
+                    const SizedBox(width: 8),
+                    _monthButton(
+                      icon: Icons.chevron_right,
+                      enabled: canGoForward,
+                      onPressed: () => setState(
+                        () => _displayedMonth = DateTime(
+                          _displayedMonth.year,
+                          _displayedMonth.month + 1,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 20),
-
-            // Calendar Days Header
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: const [
+              children: [
                 _CalendarHeaderDay('SUN'),
                 _CalendarHeaderDay('MON'),
                 _CalendarHeaderDay('TUE'),
@@ -154,24 +217,18 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
                 _CalendarHeaderDay('SAT'),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Calendar Grid Days
+            const SizedBox(height: 12),
             _buildCalendarGrid(),
-            const SizedBox(height: 28),
-
-            // Accompaniments Header
+            const SizedBox(height: 24),
             const Text(
-              'Accompaniments',
+              'Guests',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primaryDark,
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Adults Row
+            const SizedBox(height: 14),
             _buildGuestRow(
               title: 'Adults',
               subtitle: 'Ages 13 and above',
@@ -179,13 +236,9 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
               onDecrement: () {
                 if (_adults > 1) setState(() => _adults--);
               },
-              onIncrement: () {
-                setState(() => _adults++);
-              },
+              onIncrement: () => setState(() => _adults++),
             ),
             const Divider(height: 24, color: AppColors.borderLight),
-
-            // Children Row
             _buildGuestRow(
               title: 'Children',
               subtitle: 'Ages 2 - 12',
@@ -193,13 +246,9 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
               onDecrement: () {
                 if (_children > 0) setState(() => _children--);
               },
-              onIncrement: () {
-                setState(() => _children++);
-              },
+              onIncrement: () => setState(() => _children++),
             ),
             const SizedBox(height: 24),
-
-            // Stay Duration Footer Summary
             const Text(
               'STAY DURATION',
               style: TextStyle(
@@ -209,154 +258,118 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
-              '$_currentMonthName ${_selectedStartDay > 0 ? _selectedStartDay : 12} — $_currentMonthName ${_selectedEndDay > 0 ? _selectedEndDay : (_selectedStartDay > 0 ? _selectedStartDay + 4 : 16)}, $_currentYear',
+              _selectedEndDate == null
+                  ? '${_formatDate(_selectedStartDate)} - Select check-out'
+                  : '${_formatDate(_selectedStartDate)} - ${_formatDate(_selectedEndDate!)}',
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primaryDark,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
-              '${_adults.toString().padLeft(2, '0')} Adults, ${_children.toString().padLeft(2, '0')} Children',
+              '$_adults Adults, $_children Children',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Apply Button
+            const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: _applySelection,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryNavy,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  'APPLY DATES & GUESTS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+                onPressed: _selectedEndDate == null ? null : _applySelection,
+                child: const Text('APPLY DATES & GUESTS'),
               ),
             ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCircleArrow(IconData icon) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.borderLight),
-        color: Colors.white,
+  Widget _monthButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: OutlinedButton(
+        onPressed: enabled ? onPressed : null,
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: const CircleBorder(),
+          side: const BorderSide(color: AppColors.borderLight),
+          backgroundColor: Colors.white,
+        ),
+        child: Icon(icon, size: 20),
       ),
-      child: Icon(icon, color: AppColors.textPrimary, size: 20),
     );
   }
 
-  List<String> _calendarDaysForMonth() {
-    if (_currentMonthIndex == 1) {
-      return [
-        '28', '29', '30', '31', '1', '2', '3',
-        '4', '5', '6', '7', '8', '9', '10',
-        '11', '12', '13', '14', '15', '16', '17',
-        '18', '19', '20', '21', '22', '23', '24',
-        '25', '26', '27', '28', '29', '30', '1',
-      ];
-    }
-
-    return [
-      '29', '30', '1', '2', '3', '4', '5',
-      '6', '7', '8', '9', '10', '11', '12',
-      '13', '14', '15', '16', '17', '18', '19',
-      '20', '21', '22', '23', '24', '25', '26',
-      '27', '28', '29', '30', '31', '', ''
-    ];
-  }
-
   Widget _buildCalendarGrid() {
-    final days = _calendarDaysForMonth();
+    final firstOfMonth = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month,
+    );
+    final firstWeekdayOffset = firstOfMonth.weekday % 7;
+    final firstVisibleDate = firstOfMonth.subtract(
+      Duration(days: firstWeekdayOffset),
+    );
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 35,
+      itemCount: 42,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        mainAxisSpacing: 8,
+        mainAxisSpacing: 4,
         crossAxisSpacing: 0,
-        childAspectRatio: 1.1,
+        childAspectRatio: 1,
       ),
       itemBuilder: (context, index) {
-        final day = days[index];
-        final isMuted = (index < 2); // 29, 30 of previous month
-        final dayNum = int.tryParse(day);
-
-        if (day.isEmpty) return const SizedBox();
-
-        bool isStartDate = dayNum == _selectedStartDay && !isMuted;
-        bool isEndDate = dayNum == _selectedEndDay && !isMuted;
-        bool isInRange = dayNum != null &&
-            _selectedStartDay > 0 &&
-            _selectedEndDay > 0 &&
-            dayNum > _selectedStartDay &&
-            dayNum < _selectedEndDay &&
-            !isMuted;
-
-        BoxDecoration? decoration;
-        Color textColor = AppColors.textPrimary;
-
-        if (isMuted) {
-          textColor = Colors.grey.shade300;
-        }
-
-        if (isInRange) {
-          decoration = BoxDecoration(
-            color: Colors.grey.shade200,
-          );
-        } else if (isStartDate || isEndDate) {
-          decoration = const BoxDecoration(
-            color: AppColors.primaryNavy,
-            shape: BoxShape.circle,
-          );
-          textColor = Colors.white;
-        }
+        final date = firstVisibleDate.add(Duration(days: index));
+        final inCurrentMonth = date.month == _displayedMonth.month;
+        final isStart = _isSameDay(date, _selectedStartDate);
+        final isEnd = _selectedEndDate != null &&
+            _isSameDay(date, _selectedEndDate!);
+        final isInRange = _selectedEndDate != null &&
+            date.isAfter(_selectedStartDate) &&
+            date.isBefore(_selectedEndDate!);
+        final isPast = date.isBefore(_today);
+        final selectable = inCurrentMonth && !isPast;
+        final isSelected = isStart || isEnd;
 
         return GestureDetector(
-          onTap: isMuted || dayNum == null ? null : () => _onDaySelected(dayNum),
-          child: Center(
-            child: Container(
-              width: isStartDate || isEndDate ? 36 : double.infinity,
-              height: isStartDate || isEndDate ? 36 : double.infinity,
-              alignment: Alignment.center,
-              decoration: decoration,
-              child: Text(
-                day,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: (isStartDate || isEndDate || isInRange)
-                      ? FontWeight.bold
-                      : FontWeight.w400,
-                  color: textColor,
-                ),
+          onTap: selectable ? () => _selectDate(date) : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primaryNavy
+                  : isInRange
+                  ? AppColors.inputBackground
+                  : Colors.transparent,
+              shape: isSelected ? BoxShape.circle : BoxShape.rectangle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '${date.day}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected || isInRange
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                color: isSelected
+                    ? Colors.white
+                    : !inCurrentMonth || isPast
+                    ? Colors.grey.shade400
+                    : AppColors.textPrimary,
               ),
             ),
           ),
@@ -373,70 +386,51 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
     required VoidCallback onIncrement,
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            InkWell(
-              onTap: onDecrement,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.borderLight, width: 1.2),
-                ),
-                child: const Icon(Icons.remove, size: 20, color: AppColors.textPrimary),
-              ),
-            ),
-            SizedBox(
-              width: 48,
-              child: Text(
-                count.toString().padLeft(2, '0'),
-                textAlign: TextAlign.center,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 17,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryDark,
                 ),
               ),
-            ),
-            InkWell(
-              onTap: onIncrement,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.borderLight, width: 1.2),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
                 ),
-                child: const Icon(Icons.add, size: 20, color: AppColors.textPrimary),
               ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Decrease $title',
+          onPressed: onDecrement,
+          icon: const Icon(Icons.remove_circle_outline),
+        ),
+        SizedBox(
+          width: 26,
+          child: Text(
+            '$count',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
             ),
-          ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Increase $title',
+          onPressed: onIncrement,
+          icon: const Icon(Icons.add_circle_outline),
         ),
       ],
     );
@@ -444,22 +438,21 @@ class _DateGuestPickerScreenState extends State<DateGuestPickerScreen> {
 }
 
 class _CalendarHeaderDay extends StatelessWidget {
-  final String day;
   const _CalendarHeaderDay(this.day);
 
+  final String day;
+
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      child: Text(
-        day,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary,
-        ),
+  Widget build(BuildContext context) => SizedBox(
+    width: 36,
+    child: Text(
+      day,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textSecondary,
       ),
-    );
-  }
+    ),
+  );
 }

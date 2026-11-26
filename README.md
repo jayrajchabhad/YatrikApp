@@ -31,6 +31,12 @@ stays are stored in Firestore.
    `users/{uid}/savedStays/{hotelId}`. Bookings are stored in `bookings`;
    customer reviews are stored in `reviews`.
 
+The configured `yatrik-e2afd` project includes four demo hotels and six room
+categories. Admins can use **Master of Hotels → Add demo hotels & rooms** to
+add any missing demo records; deterministic document IDs prevent duplicates
+and existing records are never overwritten. No sample bookings are created;
+bookings are made through the authenticated customer flow.
+
 The app's payment choices are for presentation only. The app does not charge
 customers or connect to a payment provider.
 

@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../data/hotel_repository.dart';
+import '../resources/app_images.dart';
 import '../theme/app_theme.dart';
 
 class BookingConfirmationScreen extends StatelessWidget {
@@ -90,80 +91,170 @@ class BookingConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = booking;
+    final imagePath = value == null || value.hotelImageUrl.trim().isEmpty
+        ? AppImages.assetAzureVista
+        : value.hotelImageUrl.trim();
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(title: const Text('Booking voucher')),
+      appBar: AppBar(title: const Text('Yatrik')),
       body: value == null
           ? const Center(child: Text('Booking details are not available.'))
           : ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 52),
-                const SizedBox(height: 12),
-                const Text(
-                  'Booking created',
+                Icon(
+                  value.status == 'CONFIRMED'
+                      ? Icons.check_circle
+                      : Icons.check_circle_outline,
+                  color: AppColors.badgeYellow,
+                  size: 52,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  value.status == 'CONFIRMED'
+                      ? 'Booking Confirmed'
+                      : 'Booking Requested',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
+                  style: const TextStyle(
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'This is a demo reservation. No payment was processed.',
+                Text(
+                  value.status == 'CONFIRMED'
+                      ? 'Your stay at ${value.hotelTitle} is confirmed.'
+                      : 'Your reservation request for ${value.hotelTitle} was created.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          value.hotelTitle,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.borderLight),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          AppImages.buildImage(
+                            pathOrUrl: imagePath,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            fallbackUrl: AppImages.azureVistaResort,
                           ),
+                          Container(
+                            height: 180,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.72),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 16,
+                            left: 16,
+                            right: 16,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  value.hotelTitle,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  value.hotelLocation.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white,
+                                    letterSpacing: 0.8,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _detail('CHECK-IN', value.checkIn),
+                            _detail('CHECK-OUT', value.checkOut),
+                            _detail('ROOM', value.roomTitle),
+                            _detail(
+                              'GUESTS',
+                              '${value.adults} Adults, ${value.children} Children',
+                            ),
+                            _detail('GUEST NAME', value.guestName),
+                            _detail('BOOKING ID', '#${value.id}'),
+                            _detail('STATUS', value.status),
+                            _detail('PAYMENT SELECTION', value.paymentMethod),
+                            const Divider(height: 24),
+                            _detail(
+                              'TOTAL (DEMO - NOT CHARGED)',
+                              '₹${value.total.toStringAsFixed(2)}',
+                              bold: true,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Present your booking reference at reception. No payment was processed.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(value.hotelLocation),
-                        const Divider(height: 28),
-                        _detail('Booking ID', value.id),
-                        _detail('Status', value.status),
-                        _detail('Room', value.roomTitle),
-                        _detail('Check-in', value.checkIn),
-                        _detail('Check-out', value.checkOut),
-                        _detail(
-                          'Guests',
-                          '${value.adults} adults, ${value.children} children',
-                        ),
-                        _detail('Guest', value.guestName),
-                        _detail('Payment selection', value.paymentMethod),
-                        const Divider(height: 28),
-                        _detail(
-                          'Total (demo)',
-                          '₹${value.total.toStringAsFixed(2)}',
-                          bold: true,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),
-                ElevatedButton.icon(
-                  onPressed: () => _exportVoucher(context, value),
-                  icon: const Icon(Icons.download_outlined),
-                  label: const Text('Download PDF'),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _exportVoucher(context, value),
+                    icon: const Icon(Icons.download_outlined),
+                    label: const Text('Download PDF'),
+                  ),
                 ),
                 const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () => _shareVoucher(context, value),
-                  icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share voucher'),
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _shareVoucher(context, value),
+                    icon: const Icon(Icons.share_outlined),
+                    label: const Text('Share voucher'),
+                  ),
                 ),
               ],
             ),
@@ -177,17 +268,23 @@ class BookingConfirmationScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 140,
             child: Text(
               label,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: TextStyle(
-                fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.bold : FontWeight.w600,
+                color: AppColors.primaryDark,
               ),
             ),
           ),

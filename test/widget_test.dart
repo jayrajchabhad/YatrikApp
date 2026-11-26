@@ -13,6 +13,7 @@ import 'package:yatrik/main.dart';
 import 'package:yatrik/screens/admin/admin_container_screen.dart';
 import 'package:yatrik/screens/admin/admin_hotels_screen.dart';
 import 'package:yatrik/screens/admin/admin_inventory_screen.dart';
+import 'package:yatrik/screens/date_guest_picker_screen.dart';
 import 'package:yatrik/screens/main_container_screen.dart';
 
 Widget _mainContainerApp() {
@@ -60,6 +61,56 @@ void main() {
     expect(find.text('Dashboard Overview'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets('Date and guest picker returns the selected stay details', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final start = DateTime.now().add(const Duration(days: 30));
+    final end = start.add(const Duration(days: 3));
+    DatePickerResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                result = await Navigator.push<DatePickerResult>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DateGuestPickerScreen(
+                      initialStartDate: start,
+                      initialEndDate: end,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open picker'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open picker'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Increase Adults'));
+    await tester.tap(find.byTooltip('Increase Children'));
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPLY DATES & GUESTS'));
+    await tester.pumpAndSettle();
+
+    expect(result?.checkInDate, DateTime(start.year, start.month, start.day));
+    expect(result?.checkOutDate, DateTime(end.year, end.month, end.day));
+    expect(result?.adults, 3);
+    expect(result?.children, 1);
+  });
+
   testWidgets('Admin can submit a hotel listing', (tester) async {
     tester.view.physicalSize = const Size(800, 1000);
     tester.view.devicePixelRatio = 1;
@@ -95,6 +146,32 @@ void main() {
     expect(repository.addedHotel?['location'], 'Jaipur, India');
     expect(repository.addedHotel?['rating'], 4.5);
     expect(repository.addedHotel?['price'], 2500);
+  });
+
+  testWidgets('Admin can add the demo catalog', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeHotelRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: AdminHotelsScreen(repository: repository)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add demo hotels & rooms'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add demo data'));
+    await tester.pumpAndSettle();
+
+    expect(repository.seedDemoCatalogCalls, 1);
+    expect(
+      find.text('Added 10 demo catalog records (hotels and rooms).'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Admin can add room inventory for a hotel', (tester) async {
@@ -172,6 +249,7 @@ void main() {
 class _FakeHotelRepository implements HotelRepository {
   Map<String, Object?>? addedHotel;
   RoomType? savedRoom;
+  int seedDemoCatalogCalls = 0;
   final List<Hotel> _hotelList = [
     const Hotel(
       id: 'hotel-1',
@@ -213,6 +291,12 @@ class _FakeHotelRepository implements HotelRepository {
 
   @override
   Future<void> deleteHotel(String id) async {}
+
+  @override
+  Future<int> seedDemoCatalog() async {
+    seedDemoCatalogCalls++;
+    return demoHotels.length + demoRooms.length;
+  }
 
   @override
   Stream<List<RoomType>> watchRooms({String? hotelId}) =>

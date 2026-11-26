@@ -19,6 +19,7 @@ class AdminHotelsScreen extends StatefulWidget {
 
 class _AdminHotelsScreenState extends State<AdminHotelsScreen> {
   late final Stream<List<Hotel>> _hotelStream;
+  bool _isSeeding = false;
 
   @override
   void initState() {
@@ -89,6 +90,56 @@ class _AdminHotelsScreenState extends State<AdminHotelsScreen> {
     }
   }
 
+  Future<void> _seedDemoCatalog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add demo hotels and rooms?'),
+        content: const Text(
+          'This adds sample listings and room categories that do not already '
+          'exist. Existing records will not be changed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Add demo data'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSeeding = true);
+    try {
+      final addedCount = await widget.repository.seedDemoCatalog();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            addedCount == 0
+                ? 'Demo records already exist; nothing was changed.'
+                : 'Added $addedCount demo catalog records (hotels and rooms).',
+          ),
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not add demo data: ${error.message ?? error.code}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSeeding = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,7 +173,24 @@ class _AdminHotelsScreenState extends State<AdminHotelsScreen> {
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isSeeding ? null : _seedDemoCatalog,
+                  icon: _isSeeding
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined),
+                  label: Text(
+                    _isSeeding ? 'Adding demo data…' : 'Add demo hotels & rooms',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               _buildHotelList(),
               const SizedBox(height: 84),
             ],

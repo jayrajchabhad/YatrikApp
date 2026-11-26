@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/hotel_repository.dart';
 import '../resources/app_images.dart';
 import '../theme/app_theme.dart';
-import 'review_booking_screen.dart';
+import 'choose_sanctuary_screen.dart';
 
 class ResortDetailScreen extends StatefulWidget {
   const ResortDetailScreen({
@@ -313,9 +313,8 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                   : () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ReviewBookingScreen(
+                        builder: (_) => ChooseSanctuaryScreen(
                           hotel: widget.hotel,
-                          room: room,
                           repository: widget.repository,
                         ),
                       ),

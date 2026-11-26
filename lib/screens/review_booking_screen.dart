@@ -5,6 +5,7 @@ import '../data/hotel_repository.dart';
 import '../resources/app_images.dart';
 import '../theme/app_theme.dart';
 import 'booking_confirmation_screen.dart';
+import 'date_guest_picker_screen.dart';
 
 class ReviewBookingScreen extends StatefulWidget {
   const ReviewBookingScreen({
@@ -27,7 +28,7 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
   late DateTime _checkOut = DateTime.now().add(const Duration(days: 3));
   int _adults = 2;
   int _children = 0;
-  String _paymentMethod = 'Pay at property';
+  String _paymentMethod = 'Credit / Debit Card (demo)';
   bool _saving = false;
   String? _errorMessage;
 
@@ -35,18 +36,23 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
   double get _total => widget.room.price * _nights;
 
   Future<void> _pickDates() async {
-    final today = DateTime.now();
-    final firstDate = DateTime(today.year, today.month, today.day);
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: firstDate,
-      lastDate: DateTime(today.year + 2),
-      initialDateRange: DateTimeRange(start: _checkIn, end: _checkOut),
+    final result = await Navigator.push<DatePickerResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DateGuestPickerScreen(
+          initialStartDate: _checkIn,
+          initialEndDate: _checkOut,
+          initialAdults: _adults,
+          initialChildren: _children,
+        ),
+      ),
     );
-    if (picked == null) return;
+    if (result == null) return;
     setState(() {
-      _checkIn = picked.start;
-      _checkOut = picked.end;
+      _checkIn = result.checkInDate;
+      _checkOut = result.checkOutDate;
+      _adults = result.adults;
+      _children = result.children;
     });
   }
 
@@ -114,10 +120,19 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
         : widget.hotel.imageUrl.trim();
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(title: const Text('Review booking')),
+      appBar: AppBar(title: const Text('Yatrik')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
+          const Text(
+            'Review Booking',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -125,7 +140,7 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
               children: [
                 AppImages.buildImage(
                   pathOrUrl: imagePath,
-                  height: 180,
+                  height: 150,
                   width: double.infinity,
                   fit: BoxFit.cover,
                 ),
@@ -137,31 +152,66 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
                       Text(
                         widget.hotel.title,
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
                         ),
                       ),
-                      Text('${widget.room.title} · ${widget.hotel.location}'),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _pickDates,
-                        icon: const Icon(Icons.calendar_month_outlined),
-                        label: Text(
-                          '${_dateString(_checkIn)} — ${_dateString(_checkOut)} ($_nights nights)',
+                      const SizedBox(height: 3),
+                      Text(
+                        '${widget.room.title} · ${widget.hotel.location}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _guestCounter(
-                        label: 'Adults',
-                        value: _adults,
-                        onChanged: (value) => setState(() => _adults = value),
-                        minimum: 1,
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _dateSummary(
+                              label: 'CHECK-IN',
+                              value: _dateString(_checkIn),
+                            ),
+                          ),
+                          Container(
+                            height: 42,
+                            width: 1,
+                            color: AppColors.borderLight,
+                          ),
+                          Expanded(
+                            child: _dateSummary(
+                              label: 'CHECK-OUT',
+                              value: _dateString(_checkOut),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Change dates',
+                            onPressed: _pickDates,
+                            icon: const Icon(Icons.edit_calendar_outlined),
+                          ),
+                        ],
                       ),
-                      _guestCounter(
-                        label: 'Children',
-                        value: _children,
-                        onChanged: (value) => setState(() => _children = value),
-                        minimum: 0,
+                      const Divider(height: 20),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.people_outline,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '$_adults Adults, $_children Children · $_nights nights',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _showGuestPicker(context),
+                            child: const Text('Edit'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -171,67 +221,222 @@ class _ReviewBookingScreenState extends State<ReviewBookingScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Payment method',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            'Payment Method',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           const Text(
-            'Demo only: this selection is saved with the booking. No payment is processed.',
+            'Demo only. Your selection is saved with the reservation; no payment is processed.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _paymentMethod,
-            decoration: const InputDecoration(
-              labelText: 'Payment choice',
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            items: const ['Pay at property', 'Demo card', 'Demo UPI']
-                .map(
-                  (method) =>
-                      DropdownMenuItem(value: method, child: Text(method)),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value != null) setState(() => _paymentMethod = value);
-            },
-          ),
           const SizedBox(height: 12),
+          _paymentOption(
+            title: 'Credit / Debit Card',
+            subtitle: 'Visa, Mastercard, Amex (demo only)',
+            value: 'Credit / Debit Card (demo)',
+            icon: Icons.credit_card_outlined,
+          ),
+          const SizedBox(height: 10),
+          _paymentOption(
+            title: 'UPI Payment',
+            subtitle: 'Google Pay, PhonePe, Paytm (demo only)',
+            value: 'UPI Payment (demo)',
+            icon: Icons.account_balance_wallet_outlined,
+          ),
+          const SizedBox(height: 10),
+          _paymentOption(
+            title: 'Pay at Hotel',
+            subtitle: 'No immediate charge; pay upon arrival',
+            value: 'Pay at Hotel',
+            icon: Icons.hotel_outlined,
+          ),
+          const SizedBox(height: 18),
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'Bill Summary',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _summaryRow(
                     '₹${widget.room.price.toStringAsFixed(0)} × $_nights nights',
-                    '₹${_total.toStringAsFixed(2)}',
+                    '₹${_total.toStringAsFixed(0)}',
                   ),
+                  const SizedBox(height: 10),
+                  _summaryRow('Service fee', '₹0'),
+                  const SizedBox(height: 10),
+                  _summaryRow('Taxes & surcharges', '₹0'),
                   const Divider(height: 24),
                   _summaryRow(
-                    'Total (no payment processed)',
+                    'TOTAL (DEMO)',
                     '₹${_total.toStringAsFixed(2)}',
                     isTotal: true,
+                  ),
+                  const SizedBox(height: 16),
+                  if (_errorMessage != null) ...[
+                    Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _createBooking,
+                      child: _saving
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('CONFIRM BOOKING'),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 12),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-          ],
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              onPressed: _saving ? null : _createBooking,
-              child: _saving
-                  ? const CircularProgressIndicator()
-                  : const Text('Create booking'),
+        ],
+      ),
+    );
+  }
+
+  Widget _dateSummary({required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _paymentOption({
+    required String title,
+    required String subtitle,
+    required String value,
+    required IconData icon,
+  }) {
+    final selected = _paymentMethod == value;
+    return InkWell(
+      onTap: _saving ? null : () => setState(() => _paymentMethod = value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.accentGold : AppColors.borderLight,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? AppColors.accentGold : AppColors.textSecondary,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(icon, color: AppColors.primaryNavy, size: 21),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGuestPicker(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Guests'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _guestCounter(
+                label: 'Adults',
+                value: _adults,
+                minimum: 1,
+                onChanged: (value) {
+                  setState(() => _adults = value);
+                  setDialogState(() {});
+                },
+              ),
+              _guestCounter(
+                label: 'Children',
+                value: _children,
+                minimum: 0,
+                onChanged: (value) {
+                  setState(() => _children = value);
+                  setDialogState(() {});
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
       ),
     );
   }

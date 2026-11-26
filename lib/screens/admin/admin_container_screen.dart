@@ -36,7 +36,11 @@ class _AdminContainerScreenState extends State<AdminContainerScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _screens = [
-      AdminDashboardScreen(repository: widget.hotelRepository),
+      AdminDashboardScreen(
+        repository: widget.hotelRepository,
+        onAddHotel: () => setState(() => _currentIndex = 1),
+        onOpenBookings: () => setState(() => _currentIndex = 2),
+      ),
       AdminHotelsScreen(repository: widget.hotelRepository),
       AdminBookingsScreen(repository: widget.hotelRepository),
       AdminProfileScreen(repository: widget.hotelRepository),

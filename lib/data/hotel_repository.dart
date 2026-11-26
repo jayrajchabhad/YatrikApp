@@ -300,11 +300,142 @@ class UserProfile {
   };
 }
 
+const demoHotels = <Hotel>[
+  Hotel(
+    id: 'demo_alpine_glass_loft',
+    title: 'Alpine Glass Loft',
+    location: 'Zermatt, Switzerland · Ski-in Access',
+    rating: 4.8,
+    price: 3200,
+    imageUrl:
+        'https://images.unsplash.com/photo-1518780664697-55e3ad937233?q=80&w=1000&auto=format&fit=crop',
+    description:
+        'A private mountain hideaway framed by alpine peaks, designed for slow mornings and effortless access to the slopes.',
+    propertyType: 'Villa',
+    amenities: ['Mountain view', 'Fireplace', 'Ski access', 'Breakfast'],
+  ),
+  Hotel(
+    id: 'demo_azure_haven_resort',
+    title: 'Azure Haven Resort',
+    location: 'Malé Atoll, Maldives · Overwater Bungalow',
+    rating: 4.9,
+    price: 8500,
+    imageUrl:
+        'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?q=80&w=1000&auto=format&fit=crop',
+    description:
+        'Overwater villas, clear lagoon views, and private-island hospitality create a serene escape in the heart of the Maldives.',
+    propertyType: 'Resort',
+    amenities: ['Private beach', 'Ocean view', 'Snorkelling', 'Spa'],
+  ),
+  Hotel(
+    id: 'demo_villa_seraphina',
+    title: 'Villa Seraphina',
+    location: 'Positano, Italy · Amalfi Coast',
+    rating: 4.8,
+    price: 6900,
+    imageUrl:
+        'https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=1000&auto=format&fit=crop',
+    description:
+        'A coastal villa surrounded by lemon groves and pastel rooftops, with a terrace made for long evenings above the sea.',
+    propertyType: 'Villa',
+    amenities: ['Sea view', 'Terrace', 'Breakfast', 'Pool'],
+  ),
+  Hotel(
+    id: 'demo_aman_i_khas',
+    title: 'Aman-i-Khas',
+    location: 'Sawai Madhopur, Rajasthan · India',
+    rating: 4.9,
+    price: 14250,
+    imageUrl:
+        'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=1000&auto=format&fit=crop',
+    description:
+        'An intimate wilderness camp near Ranthambore, pairing quiet luxury with guided days among the forest and its wildlife.',
+    propertyType: 'Resort',
+    amenities: ['Safari access', 'Private tent', 'Dining', 'Pool'],
+  ),
+];
+
+const demoRooms = <RoomType>[
+  RoomType(
+    id: 'demo_alpine_glass_loft',
+    hotelId: 'demo_alpine_glass_loft',
+    hotelTitle: 'Alpine Glass Loft',
+    title: 'Glass Loft',
+    price: 3200,
+    units: 5,
+    description: 'Panoramic mountain view · King bed · Fireplace',
+    imageUrl:
+        'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=900&auto=format&fit=crop',
+    amenities: ['King bed', 'Fireplace', 'Mountain view'],
+  ),
+  RoomType(
+    id: 'demo_alpine_glass_suite',
+    hotelId: 'demo_alpine_glass_loft',
+    hotelTitle: 'Alpine Glass Loft',
+    title: 'Alpine View Suite',
+    price: 5400,
+    units: 2,
+    description: 'Private terrace · King bed · Ski storage',
+    imageUrl:
+        'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop',
+    amenities: ['Terrace', 'King bed', 'Ski storage'],
+  ),
+  RoomType(
+    id: 'demo_azure_haven_bungalow',
+    hotelId: 'demo_azure_haven_resort',
+    hotelTitle: 'Azure Haven Resort',
+    title: 'Overwater Bungalow',
+    price: 8500,
+    units: 6,
+    description: 'Private deck · Lagoon access · King bed',
+    imageUrl:
+        'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop',
+    amenities: ['Private deck', 'Lagoon access', 'King bed'],
+  ),
+  RoomType(
+    id: 'demo_azure_haven_ocean_villa',
+    hotelId: 'demo_azure_haven_resort',
+    hotelTitle: 'Azure Haven Resort',
+    title: 'Ocean Villa',
+    price: 12500,
+    units: 2,
+    description: 'Private plunge pool · Oceanfront deck · Butler service',
+    imageUrl:
+        'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=900&auto=format&fit=crop',
+    amenities: ['Plunge pool', 'Oceanfront', 'Butler service'],
+  ),
+  RoomType(
+    id: 'demo_villa_seraphina_garden',
+    hotelId: 'demo_villa_seraphina',
+    hotelTitle: 'Villa Seraphina',
+    title: 'Garden Suite',
+    price: 6900,
+    units: 4,
+    description: 'Private garden · Queen bed · Terrace breakfast',
+    imageUrl:
+        'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=900&auto=format&fit=crop',
+    amenities: ['Private garden', 'Queen bed', 'Breakfast'],
+  ),
+  RoomType(
+    id: 'demo_aman_khas_luxury_tent',
+    hotelId: 'demo_aman_i_khas',
+    hotelTitle: 'Aman-i-Khas',
+    title: 'Luxury Tent',
+    price: 14250,
+    units: 3,
+    description: 'Private deck · King bed · Safari camp experience',
+    imageUrl:
+        'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=900&auto=format&fit=crop',
+    amenities: ['Private deck', 'King bed', 'Safari access'],
+  ),
+];
+
 abstract interface class HotelRepository {
   Stream<List<Hotel>> watchHotels();
   Future<void> addHotel(Hotel hotel);
   Future<void> updateHotel(Hotel hotel);
   Future<void> deleteHotel(String id);
+  Future<int> seedDemoCatalog();
 
   Stream<List<RoomType>> watchRooms({String? hotelId});
   Future<void> saveRoom(RoomType room);
@@ -345,6 +476,42 @@ class FirestoreHotelRepository implements HotelRepository {
   Stream<List<Hotel>> watchHotels() => _hotels.snapshots().map(
     (snapshot) => snapshot.docs.map(Hotel.fromDocument).toList(),
   );
+
+  @override
+  Future<int> seedDemoCatalog() async {
+    final hotelReferences = demoHotels.map((hotel) => _hotels.doc(hotel.id));
+    final roomReferences = demoRooms.map((room) => _rooms.doc(room.id));
+
+    return _db.runTransaction((transaction) async {
+      final hotelSnapshots = await Future.wait(
+        hotelReferences.map(transaction.get),
+      );
+      final roomSnapshots = await Future.wait(
+        roomReferences.map(transaction.get),
+      );
+      var addedCount = 0;
+
+      for (var index = 0; index < demoHotels.length; index++) {
+        if (hotelSnapshots[index].exists) continue;
+        transaction.set(
+          _hotels.doc(demoHotels[index].id),
+          demoHotels[index].toMap(),
+        );
+        addedCount++;
+      }
+
+      for (var index = 0; index < demoRooms.length; index++) {
+        if (roomSnapshots[index].exists) continue;
+        transaction.set(
+          _rooms.doc(demoRooms[index].id),
+          demoRooms[index].toMap(),
+        );
+        addedCount++;
+      }
+
+      return addedCount;
+    });
+  }
 
   @override
   Future<void> addHotel(Hotel hotel) async {
