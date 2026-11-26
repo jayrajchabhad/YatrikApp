@@ -212,6 +212,25 @@ class Booking {
     'status': status,
     'createdAt': FieldValue.serverTimestamp(),
   };
+
+  Map<String, Object?> toUpdateMap() => {
+    'guestName': guestName,
+    'guestEmail': guestEmail,
+    'hotelId': hotelId,
+    'hotelTitle': hotelTitle,
+    'hotelLocation': hotelLocation,
+    'hotelImageUrl': hotelImageUrl,
+    'roomId': roomId,
+    'roomTitle': roomTitle,
+    'checkIn': checkIn,
+    'checkOut': checkOut,
+    'adults': adults,
+    'children': children,
+    'total': total,
+    'paymentMethod': paymentMethod,
+    'status': status,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
 }
 
 class Review {
@@ -436,6 +455,7 @@ abstract interface class HotelRepository {
   Future<void> updateHotel(Hotel hotel);
   Future<void> deleteHotel(String id);
   Future<int> seedDemoCatalog();
+  Future<int> addStarterRoomsForHotelsWithoutRooms();
 
   Stream<List<RoomType>> watchRooms({String? hotelId});
   Future<void> saveRoom(RoomType room);
@@ -443,6 +463,8 @@ abstract interface class HotelRepository {
 
   Stream<List<Booking>> watchBookings({String? userId});
   Future<String> createBooking(Booking booking);
+  Future<int> seedDemoBookings();
+  Future<void> updateBooking(Booking booking);
   Future<void> updateBookingStatus(String id, String status);
   Future<void> deleteBooking(String id);
 
@@ -511,6 +533,47 @@ class FirestoreHotelRepository implements HotelRepository {
 
       return addedCount;
     });
+  }
+
+  @override
+  Future<int> addStarterRoomsForHotelsWithoutRooms() async {
+    final hotelSnapshot = await _hotels.get();
+    final roomSnapshot = await _rooms.get();
+    final hotelsWithRooms = roomSnapshot.docs
+        .map((room) => _readString(room.data(), 'hotelId'))
+        .toSet();
+    final missingHotels = hotelSnapshot.docs
+        .map(Hotel.fromDocument)
+        .where((hotel) => !hotelsWithRooms.contains(hotel.id));
+    var addedCount = 0;
+
+    for (final hotel in missingHotels) {
+      final roomReference = _rooms.doc('starter_${hotel.id}');
+      final wasAdded = await _db.runTransaction((transaction) async {
+        final room = await transaction.get(roomReference);
+        final hotelDocument = await transaction.get(_hotels.doc(hotel.id));
+        if (room.exists || !hotelDocument.exists) return false;
+
+        transaction.set(
+          roomReference,
+          RoomType(
+            id: roomReference.id,
+            hotelId: hotel.id,
+            hotelTitle: hotel.title,
+            title: 'Standard Room',
+            price: hotel.price,
+            units: 3,
+            description: 'Comfortable room with essential hotel amenities.',
+            imageUrl: hotel.imageUrl,
+            amenities: const ['Wi-Fi', 'Air conditioning', 'Private bathroom'],
+          ).toMap(),
+        );
+        return true;
+      });
+      if (wasAdded) addedCount++;
+    }
+
+    return addedCount;
   }
 
   @override
@@ -587,6 +650,9 @@ class FirestoreHotelRepository implements HotelRepository {
     if (booking.userId.isEmpty || booking.roomId.isEmpty) {
       throw ArgumentError('A signed-in user and room are required to book.');
     }
+    if (booking.status != 'PENDING') {
+      throw ArgumentError('New customer bookings must start as pending.');
+    }
     await _db.runTransaction((transaction) async {
       final roomReference = _rooms.doc(booking.roomId);
       final roomSnapshot = await transaction.get(roomReference);
@@ -608,7 +674,246 @@ class FirestoreHotelRepository implements HotelRepository {
   }
 
   @override
+  Future<int> seedDemoBookings() async {
+    final hotelSnapshot = await _hotels.limit(100).get();
+    final roomSnapshot = await _rooms.limit(100).get();
+    if (hotelSnapshot.docs.isEmpty || roomSnapshot.docs.isEmpty) {
+      throw StateError(
+        'Add hotels and room categories before sample bookings.',
+      );
+    }
+
+    final hotels = {
+      for (final document in hotelSnapshot.docs)
+        document.id: Hotel.fromDocument(document),
+    };
+    final rooms = {
+      for (final document in roomSnapshot.docs)
+        document.id: RoomType.fromDocument(document),
+    };
+    final referenceRooms = roomSnapshot.docs
+        .where((document) => hotels.containsKey(rooms[document.id]!.hotelId))
+        .toList();
+    if (referenceRooms.isEmpty) {
+      throw StateError('Add a room category linked to an existing hotel.');
+    }
+
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+    final samples = [
+      (
+        id: 'demo_booking_upcoming',
+        guestName: 'Sample Guest · Upcoming',
+        guestEmail: 'upcoming@example.test',
+        userId: 'demo_guest_upcoming',
+        status: 'CONFIRMED',
+        checkIn: startOfToday.add(const Duration(days: 14)),
+        nights: 2,
+      ),
+      (
+        id: 'demo_booking_pending',
+        guestName: 'Sample Guest · Pending',
+        guestEmail: 'pending@example.test',
+        userId: 'demo_guest_pending',
+        status: 'PENDING',
+        checkIn: startOfToday.add(const Duration(days: 21)),
+        nights: 3,
+      ),
+      (
+        id: 'demo_booking_cancelled',
+        guestName: 'Sample Guest · Cancelled',
+        guestEmail: 'cancelled@example.test',
+        userId: 'demo_guest_cancelled',
+        status: 'CANCELLED',
+        checkIn: startOfToday.add(const Duration(days: 7)),
+        nights: 1,
+      ),
+    ];
+    final bookingReferences = {
+      for (final sample in samples) sample.id: _bookings.doc(sample.id),
+    };
+    final roomReferences = {
+      for (final room in referenceRooms) room.id: _rooms.doc(room.id),
+    };
+    final hotelReferences = {
+      for (final hotelId in hotels.keys) hotelId: _hotels.doc(hotelId),
+    };
+
+    return _db.runTransaction((transaction) async {
+      final bookingSnapshots = await Future.wait(
+        bookingReferences.values.map(transaction.get),
+      );
+      final roomSnapshots = await Future.wait(
+        roomReferences.values.map(transaction.get),
+      );
+      final hotelSnapshots = await Future.wait(
+        hotelReferences.values.map(transaction.get),
+      );
+      final existingBookings = {
+        for (var index = 0; index < bookingSnapshots.length; index++)
+          bookingReferences.keys.elementAt(index): bookingSnapshots[index],
+      };
+      final currentRoomSnapshots = {
+        for (var index = 0; index < roomSnapshots.length; index++)
+          roomReferences.keys.elementAt(index): roomSnapshots[index],
+      };
+      final currentHotelIds = {
+        for (var index = 0; index < hotelSnapshots.length; index++)
+          if (hotelSnapshots[index].exists)
+            hotelReferences.keys.elementAt(index),
+      };
+      final availableUnits = {
+        for (var index = 0; index < roomSnapshots.length; index++)
+          roomReferences.keys.elementAt(index): _readInt(
+            roomSnapshots[index].data() ?? const {},
+            'units',
+          ),
+      };
+      final validReferenceRooms = referenceRooms.where((document) {
+        final room = rooms[document.id]!;
+        return currentRoomSnapshots[document.id]!.exists &&
+            currentHotelIds.contains(room.hotelId);
+      }).toList();
+      if (validReferenceRooms.isEmpty) {
+        throw StateError('Add a room category linked to an existing hotel.');
+      }
+      final reservedUnits = <String, int>{};
+      final lastSampleByRoom = <String, String>{};
+      var addedCount = 0;
+
+      for (final sample in samples) {
+        if (existingBookings[sample.id]!.exists) continue;
+
+        final candidates =
+            validReferenceRooms.where((document) {
+              final room = rooms[document.id]!;
+              return sample.status == 'CANCELLED' ||
+                  availableUnits[room.id]! > 0;
+            }).toList()..sort((first, second) {
+              final firstUnits = availableUnits[first.id]!;
+              final secondUnits = availableUnits[second.id]!;
+              return secondUnits.compareTo(firstUnits);
+            });
+        if (candidates.isEmpty) {
+          throw StateError(
+            'At least two room units must be available for active sample bookings.',
+          );
+        }
+
+        final roomDocument = candidates.first;
+        final room = rooms[roomDocument.id]!;
+        final hotel = hotels[room.hotelId]!;
+        final checkOut = sample.checkIn.add(Duration(days: sample.nights));
+        final booking = Booking(
+          id: sample.id,
+          userId: sample.userId,
+          guestName: sample.guestName,
+          guestEmail: sample.guestEmail,
+          hotelId: hotel.id,
+          hotelTitle: hotel.title,
+          hotelLocation: hotel.location,
+          hotelImageUrl: hotel.imageUrl,
+          roomId: room.id,
+          roomTitle: room.title,
+          checkIn: _dateKey(sample.checkIn),
+          checkOut: _dateKey(checkOut),
+          adults: 2,
+          children: 0,
+          total: room.price * sample.nights,
+          paymentMethod: 'Pay at Hotel',
+          status: sample.status,
+        );
+        transaction.set(bookingReferences[sample.id]!, booking.toMap());
+        if (sample.status != 'CANCELLED') {
+          availableUnits[room.id] = availableUnits[room.id]! - 1;
+          reservedUnits[room.id] = (reservedUnits[room.id] ?? 0) + 1;
+          lastSampleByRoom[room.id] = sample.id;
+        }
+        addedCount++;
+      }
+
+      for (final entry in reservedUnits.entries) {
+        transaction.update(roomReferences[entry.key]!, {
+          'units': availableUnits[entry.key],
+          'lastBookingId': lastSampleByRoom[entry.key],
+        });
+      }
+      return addedCount;
+    });
+  }
+
+  @override
+  Future<void> updateBooking(Booking booking) async {
+    if (booking.id.isEmpty) {
+      throw ArgumentError('An existing booking ID is required to edit it.');
+    }
+    _validateBookingStatus(booking.status);
+
+    await _db.runTransaction((transaction) async {
+      final bookingReference = _bookings.doc(booking.id);
+      final bookingSnapshot = await transaction.get(bookingReference);
+      if (!bookingSnapshot.exists) {
+        throw StateError('This booking no longer exists.');
+      }
+
+      final previousData = bookingSnapshot.data()!;
+      final previousStatus = _readString(previousData, 'status');
+      final previousRoomId = _readString(previousData, 'roomId');
+      final roomIds = {previousRoomId, booking.roomId}
+        ..removeWhere((id) => id.isEmpty);
+      final roomSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final roomId in roomIds) {
+        roomSnapshots[roomId] = await transaction.get(_rooms.doc(roomId));
+      }
+
+      final nextRoomSnapshot = roomSnapshots[booking.roomId];
+      if (nextRoomSnapshot == null || !nextRoomSnapshot.exists) {
+        throw StateError('The selected room no longer exists.');
+      }
+      if (_readString(nextRoomSnapshot.data()!, 'hotelId') != booking.hotelId) {
+        throw StateError('The selected room does not belong to this hotel.');
+      }
+
+      final previousReservesRoom = _reservesRoom(previousStatus);
+      final nextReservesRoom = _reservesRoom(booking.status);
+      final roomDeltas = <String, int>{};
+      if (previousRoomId == booking.roomId) {
+        if (previousReservesRoom && !nextReservesRoom) {
+          roomDeltas[previousRoomId] = 1;
+        } else if (!previousReservesRoom && nextReservesRoom) {
+          roomDeltas[booking.roomId] = -1;
+        }
+      } else {
+        if (previousReservesRoom) {
+          roomDeltas[previousRoomId] = 1;
+        }
+        if (nextReservesRoom) {
+          roomDeltas[booking.roomId] = (roomDeltas[booking.roomId] ?? 0) - 1;
+        }
+      }
+
+      for (final entry in roomDeltas.entries) {
+        final roomSnapshot = roomSnapshots[entry.key];
+        if (roomSnapshot == null || !roomSnapshot.exists) {
+          throw StateError('A room linked to this booking no longer exists.');
+        }
+        final units = _readInt(roomSnapshot.data()!, 'units');
+        final updatedUnits = units + entry.value;
+        if (updatedUnits < 0) {
+          throw StateError('No room units are available for this booking.');
+        }
+        transaction.update(_rooms.doc(entry.key), {
+          'units': updatedUnits,
+          'lastBookingId': booking.id,
+        });
+      }
+      transaction.update(bookingReference, booking.toUpdateMap());
+    });
+  }
+
+  @override
   Future<void> updateBookingStatus(String id, String status) async {
+    _validateBookingStatus(status);
     await _db.runTransaction((transaction) async {
       final bookingReference = _bookings.doc(id);
       final bookingSnapshot = await transaction.get(bookingReference);
@@ -619,29 +924,29 @@ class FirestoreHotelRepository implements HotelRepository {
       final previousStatus = _readString(bookingData, 'status');
       if (previousStatus == status) return;
 
-      final roomId = _readString(bookingData, 'roomId');
-      final roomReference = roomId.isEmpty ? null : _rooms.doc(roomId);
-      final roomSnapshot = roomReference == null
-          ? null
-          : await transaction.get(roomReference);
-      if (roomReference != null && roomSnapshot!.exists) {
-        final units = _readInt(roomSnapshot.data()!, 'units');
-        if (previousStatus != 'CANCELLED' && status == 'CANCELLED') {
-          transaction.update(roomReference, {
-            'units': units + 1,
-            'lastBookingId': id,
-          });
-        } else if (previousStatus == 'CANCELLED' && status != 'CANCELLED') {
-          if (units <= 0) {
-            throw StateError(
-              'No room units are available to restore this booking.',
-            );
-          }
-          transaction.update(roomReference, {
-            'units': units - 1,
-            'lastBookingId': id,
-          });
+      final previousReservesRoom = _reservesRoom(previousStatus);
+      final nextReservesRoom = _reservesRoom(status);
+      if (previousReservesRoom != nextReservesRoom) {
+        final roomId = _readString(bookingData, 'roomId');
+        if (roomId.isEmpty) {
+          throw StateError('This booking has no room linked to it.');
         }
+        final roomReference = _rooms.doc(roomId);
+        final roomSnapshot = await transaction.get(roomReference);
+        if (!roomSnapshot.exists) {
+          throw StateError('The room linked to this booking no longer exists.');
+        }
+        final units = _readInt(roomSnapshot.data()!, 'units');
+        final updatedUnits = units + (nextReservesRoom ? -1 : 1);
+        if (updatedUnits < 0) {
+          throw StateError(
+            'No room units are available to restore this booking.',
+          );
+        }
+        transaction.update(roomReference, {
+          'units': updatedUnits,
+          'lastBookingId': id,
+        });
       }
       transaction.update(bookingReference, {'status': status});
     });
@@ -659,7 +964,7 @@ class FirestoreHotelRepository implements HotelRepository {
       final roomSnapshot = roomReference == null
           ? null
           : await transaction.get(roomReference);
-      if (_readString(bookingData, 'status') != 'CANCELLED' &&
+      if (_reservesRoom(_readString(bookingData, 'status')) &&
           roomReference != null &&
           roomSnapshot!.exists) {
         transaction.update(roomReference, {
@@ -789,6 +1094,19 @@ int _readInt(Map<String, dynamic> data, String key, {int fallback = 0}) {
   final value = data[key];
   return value is num ? value.toInt() : fallback;
 }
+
+bool _reservesRoom(String status) =>
+    status == 'PENDING' || status == 'CONFIRMED';
+
+void _validateBookingStatus(String status) {
+  const allowedStatuses = {'PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'};
+  if (!allowedStatuses.contains(status)) {
+    throw ArgumentError.value(status, 'status', 'Unsupported booking status.');
+  }
+}
+
+String _dateKey(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
 List<String> _readStringList(Object? value) {
   if (value is! Iterable) return const [];

@@ -72,12 +72,15 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'PENDING'
-        && request.resource.data.hotelId
-          == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.hotelId
-        && reservesRoom(request.resource.data.roomId, bookingId);
+      allow create: if isAdmin()
+        || (
+          signedIn()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == 'PENDING'
+          && request.resource.data.hotelId
+            == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.hotelId
+          && reservesRoom(request.resource.data.roomId, bookingId)
+        );
       allow read: if isAdmin()
         || (signedIn() && resource.data.userId == request.auth.uid);
       allow update: if isAdmin()

@@ -22,6 +22,25 @@ Future<void> showAdminNewBookingSheet(
   }
 }
 
+Future<void> showAdminEditBookingSheet(
+  BuildContext context,
+  HotelRepository repository,
+  Booking booking,
+) async {
+  final updated = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) =>
+        _AdminBookingEditor(repository: repository, booking: booking),
+  );
+  if (updated == true && context.mounted) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Booking updated.')));
+  }
+}
+
 class AdminBookingsScreen extends StatefulWidget {
   const AdminBookingsScreen({
     super.key,
@@ -36,6 +55,7 @@ class AdminBookingsScreen extends StatefulWidget {
 
 class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
   String _filter = 'All';
+  bool _seedingSamples = false;
 
   Future<void> _showFilterSheet() async {
     final filter = await showModalBottomSheet<String>(
@@ -96,6 +116,65 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _editBooking(Booking booking) async {
+    await showAdminEditBookingSheet(context, widget.repository, booking);
+  }
+
+  Future<void> _seedSampleBookings() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add sample bookings?'),
+        content: const Text(
+          'Add one upcoming confirmed stay, one pending booking, and one '
+          'cancelled booking. These records are clearly labeled as samples.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Add samples'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _seedingSamples = true);
+    try {
+      final added = await widget.repository.seedDemoBookings();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            added == 0
+                ? 'Sample bookings already exist.'
+                : 'Added $added sample bookings.',
+          ),
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not add sample bookings: ${error.message ?? error.code}',
+          ),
+        ),
+      );
+    } on StateError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message.toString())));
+    } finally {
+      if (mounted) setState(() => _seedingSamples = false);
     }
   }
 
@@ -173,19 +252,26 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: ['All', 'Confirmed', 'Pending', 'Cancelled']
-                              .map(
-                                (filter) => Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: ChoiceChip(
-                                    label: Text(filter),
-                                    selected: _filter == filter,
-                                    onSelected: (_) =>
-                                        setState(() => _filter = filter),
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                          children:
+                              [
+                                    'All',
+                                    'Confirmed',
+                                    'Pending',
+                                    'Cancelled',
+                                    'Completed',
+                                  ]
+                                  .map(
+                                    (filter) => Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: ChoiceChip(
+                                        label: Text(filter),
+                                        selected: _filter == filter,
+                                        onSelected: (_) =>
+                                            setState(() => _filter = filter),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
                         ),
                       ),
                     ),
@@ -195,12 +281,21 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
                       onPressed: _showFilterSheet,
                       icon: const Icon(Icons.filter_list),
                     ),
+                    IconButton(
+                      tooltip: 'Add sample bookings',
+                      onPressed: _seedingSamples ? null : _seedSampleBookings,
+                      icon: _seedingSamples
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome_outlined),
+                    ),
                     const SizedBox(width: 6),
                     FilledButton.icon(
-                      onPressed: () => showAdminNewBookingSheet(
-                        context,
-                        widget.repository,
-                      ),
+                      onPressed: () =>
+                          showAdminNewBookingSheet(context, widget.repository),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('New'),
                     ),
@@ -255,7 +350,9 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
       cells: [
         DataCell(
           Text(
-            booking.id.isEmpty ? '—' : '#${booking.id.substring(0, booking.id.length.clamp(0, 8))}',
+            booking.id.isEmpty
+                ? '—'
+                : '#${booking.id.substring(0, booking.id.length.clamp(0, 8))}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
@@ -309,11 +406,14 @@ class _AdminBookingsScreenState extends State<AdminBookingsScreen> {
             onSelected: (action) {
               if (action == 'delete') {
                 _deleteBooking(booking);
+              } else if (action == 'edit') {
+                _editBooking(booking);
               } else {
                 _updateStatus(booking, action);
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit booking')),
               PopupMenuItem(value: 'PENDING', child: Text('Mark pending')),
               PopupMenuItem(value: 'CONFIRMED', child: Text('Confirm')),
               PopupMenuItem(value: 'CANCELLED', child: Text('Cancel')),
@@ -401,15 +501,16 @@ class _BookingFilterSheetState extends State<_BookingFilterSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['All', 'Confirmed', 'Pending', 'Cancelled']
-                  .map(
-                    (filter) => ChoiceChip(
-                      label: Text(filter),
-                      selected: _filter == filter,
-                      onSelected: (_) => setState(() => _filter = filter),
-                    ),
-                  )
-                  .toList(),
+              children:
+                  ['All', 'Confirmed', 'Pending', 'Cancelled', 'Completed']
+                      .map(
+                        (filter) => ChoiceChip(
+                          label: Text(filter),
+                          selected: _filter == filter,
+                          onSelected: (_) => setState(() => _filter = filter),
+                        ),
+                      )
+                      .toList(),
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -428,9 +529,10 @@ class _BookingFilterSheetState extends State<_BookingFilterSheet> {
 }
 
 class _AdminBookingEditor extends StatefulWidget {
-  const _AdminBookingEditor({required this.repository});
+  const _AdminBookingEditor({required this.repository, this.booking});
 
   final HotelRepository repository;
+  final Booking? booking;
 
   @override
   State<_AdminBookingEditor> createState() => _AdminBookingEditorState();
@@ -440,19 +542,42 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _totalController = TextEditingController();
   String? _hotelId;
   String? _roomId;
-  late DateTime _checkIn = DateTime.now().add(const Duration(days: 1));
-  late DateTime _checkOut = DateTime.now().add(const Duration(days: 3));
+  late DateTime _checkIn;
+  late DateTime _checkOut;
   int _adults = 2;
   int _children = 0;
+  String _status = 'PENDING';
   bool _saving = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    final booking = widget.booking;
+    _nameController.text = booking?.guestName ?? '';
+    _emailController.text = booking?.guestEmail ?? '';
+    _totalController.text = booking?.total.toStringAsFixed(2) ?? '';
+    _hotelId = booking?.hotelId;
+    _roomId = booking?.roomId;
+    _checkIn =
+        DateTime.tryParse(booking?.checkIn ?? '') ??
+        DateTime.now().add(const Duration(days: 1));
+    _checkOut =
+        DateTime.tryParse(booking?.checkOut ?? '') ??
+        DateTime.now().add(const Duration(days: 3));
+    _adults = booking?.adults ?? 2;
+    _children = booking?.children ?? 0;
+    _status = booking?.status ?? 'PENDING';
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _totalController.dispose();
     super.dispose();
   }
 
@@ -477,15 +602,16 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
     });
   }
 
-  Future<void> _createBooking(Hotel hotel, RoomType room) async {
+  Future<void> _saveBooking(Hotel hotel, RoomType room) async {
     if (!_formKey.currentState!.validate()) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      setState(() => _errorMessage = 'Sign in with an admin account first.');
-      return;
-    }
     if (_checkOut.difference(_checkIn).inDays <= 0) {
       setState(() => _errorMessage = 'Select a valid check-out date.');
+      return;
+    }
+    final existing = widget.booking;
+    final user = existing == null ? FirebaseAuth.instance.currentUser : null;
+    if (existing == null && user == null) {
+      setState(() => _errorMessage = 'Sign in with an admin account first.');
       return;
     }
 
@@ -494,32 +620,49 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
       _errorMessage = null;
     });
     final nights = _checkOut.difference(_checkIn).inDays;
+    final total = existing == null
+        ? room.price * nights
+        : double.tryParse(_totalController.text.trim());
+    if (total == null || total < 0) {
+      setState(() {
+        _saving = false;
+        _errorMessage = 'Enter a valid booking amount.';
+      });
+      return;
+    }
     try {
-      await widget.repository.createBooking(
-        Booking(
-          userId: user.uid,
-          guestName: _nameController.text.trim(),
-          guestEmail: _emailController.text.trim(),
-          hotelId: hotel.id,
-          hotelTitle: hotel.title,
-          hotelLocation: hotel.location,
-          hotelImageUrl: hotel.imageUrl,
-          roomId: room.id,
-          roomTitle: room.title,
-          checkIn: _dateString(_checkIn),
-          checkOut: _dateString(_checkOut),
-          adults: _adults,
-          children: _children,
-          total: room.price * nights,
-          paymentMethod: 'Pay at Hotel',
-        ),
+      final booking = Booking(
+        id: existing?.id ?? '',
+        userId: existing?.userId ?? user!.uid,
+        guestName: _nameController.text.trim(),
+        guestEmail: _emailController.text.trim(),
+        hotelId: hotel.id,
+        hotelTitle: hotel.title,
+        hotelLocation: hotel.location,
+        hotelImageUrl: hotel.imageUrl,
+        roomId: room.id,
+        roomTitle: room.title,
+        checkIn: _dateString(_checkIn),
+        checkOut: _dateString(_checkOut),
+        adults: _adults,
+        children: _children,
+        total: total,
+        paymentMethod: existing?.paymentMethod ?? 'Pay at Hotel',
+        status: existing == null ? 'PENDING' : _status,
+        createdAt: existing?.createdAt,
       );
+      if (existing == null) {
+        await widget.repository.createBooking(booking);
+      } else {
+        await widget.repository.updateBooking(booking);
+      }
       if (mounted) Navigator.pop(context, true);
     } on FirebaseException catch (error) {
       if (mounted) {
         setState(
-          () => _errorMessage =
-              'Could not create booking: ${error.message ?? error.code}',
+          () => _errorMessage = existing == null
+              ? 'Could not create booking: ${error.message ?? error.code}'
+              : 'Could not update booking: ${error.message ?? error.code}',
         );
       }
     } on StateError catch (error) {
@@ -554,9 +697,11 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Create New Booking',
+                    widget.booking == null
+                        ? 'Create New Booking'
+                        : 'Edit Booking',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -590,15 +735,61 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
             const SizedBox(height: 10),
             _buildHotelSelector(),
             const SizedBox(height: 10),
+            if (widget.booking != null) ...[
+              DropdownButtonFormField<String>(
+                initialValue: _status,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Status'),
+                items: const [
+                  DropdownMenuItem(value: 'PENDING', child: Text('Pending')),
+                  DropdownMenuItem(
+                    value: 'CONFIRMED',
+                    child: Text('Confirmed'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'CANCELLED',
+                    child: Text('Cancelled'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'COMPLETED',
+                    child: Text('Completed'),
+                  ),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => _status = value);
+                      },
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _totalController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Total amount (INR)',
+                ),
+                validator: (value) {
+                  final total = double.tryParse(value?.trim() ?? '');
+                  return total == null || total < 0
+                      ? 'Enter a valid amount.'
+                      : null;
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
             _buildDateButton(),
             if (_errorMessage != null) ...[
               const SizedBox(height: 12),
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 12),
-            const Text(
-              'New reservations are created as pending and stored under this admin account, not the guest account. The total uses the selected room rate; no payment is processed.',
-              style: TextStyle(
+            Text(
+              widget.booking == null
+                  ? 'New reservations are created as pending and stored under this admin account, not the guest account. No payment is processed.'
+                  : 'Changes update the booking and room inventory together. Admin-created reservations remain linked to the account that created them.',
+              style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
                 height: 1.4,
@@ -637,6 +828,7 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: hotel.id,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Select Hotel'),
               items: hotels
                   .map(
@@ -674,7 +866,9 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
                 if (rooms.isEmpty) {
                   return const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('No room categories are available for this hotel.'),
+                    child: Text(
+                      'No room categories are available for this hotel.',
+                    ),
                   );
                 }
                 final room = rooms.firstWhere(
@@ -686,6 +880,7 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
                   children: [
                     DropdownButtonFormField<String>(
                       initialValue: room.id,
+                      isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Room Type'),
                       items: rooms
                           .map(
@@ -704,18 +899,21 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
                           : (value) => setState(() => _roomId = value),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      'Estimated total: ₹${(room.price * _checkOut.difference(_checkIn).inDays).toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    if (widget.booking == null)
+                      Text(
+                        'Estimated total: ₹${(room.price * _checkOut.difference(_checkIn).inDays).toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _saving || room.units <= 0
+                        onPressed:
+                            _saving ||
+                                (widget.booking == null && room.units <= 0)
                             ? null
-                            : () => _createBooking(hotel, room),
+                            : () => _saveBooking(hotel, room),
                         child: _saving
                             ? const SizedBox(
                                 width: 20,
@@ -724,7 +922,11 @@ class _AdminBookingEditorState extends State<_AdminBookingEditor> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('CREATE BOOKING REQUEST'),
+                            : Text(
+                                widget.booking == null
+                                    ? 'CREATE BOOKING REQUEST'
+                                    : 'SAVE BOOKING CHANGES',
+                              ),
                       ),
                     ),
                   ],

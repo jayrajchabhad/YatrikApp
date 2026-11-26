@@ -82,6 +82,75 @@ void main() {
     expect(find.text('No bookings for this filter.'), findsOneWidget);
   });
 
+  testWidgets('Admin can add sample bookings', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeHotelRepository();
+    await tester.pumpWidget(
+      MaterialApp(home: AdminBookingsScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Add sample bookings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add samples'));
+    await tester.pumpAndSettle();
+
+    expect(repository.seedDemoBookingsCalls, 1);
+    expect(find.text('Added 3 sample bookings.'), findsOneWidget);
+  });
+
+  testWidgets('Admin can edit a booking record', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final booking = Booking(
+      id: 'booking-123',
+      userId: 'guest-1',
+      guestName: 'Sample Guest',
+      guestEmail: 'guest@example.test',
+      hotelId: 'hotel-1',
+      hotelTitle: 'Azure Vista Resort',
+      hotelLocation: 'Oia, Greece',
+      hotelImageUrl: '',
+      roomId: 'room-1',
+      roomTitle: 'Standard Room',
+      checkIn: '2030-06-01',
+      checkOut: '2030-06-03',
+      adults: 2,
+      children: 0,
+      total: 4800,
+      paymentMethod: 'Pay at Hotel',
+      status: 'CONFIRMED',
+    );
+    final repository = _FakeHotelRepository(initialBookings: [booking]);
+    await tester.pumpWidget(
+      MaterialApp(home: AdminBookingsScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Booking actions').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit booking'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Booking'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Guest Full Name'),
+      'Updated Guest',
+    );
+    await tester.tap(find.text('SAVE BOOKING CHANGES'));
+    await tester.pumpAndSettle();
+
+    expect(repository.updatedBooking?.guestName, 'Updated Guest');
+    expect(repository.updatedBooking?.id, booking.id);
+  });
+
   testWidgets('Date and guest picker returns the selected stay details', (
     tester,
   ) async {
@@ -230,6 +299,28 @@ void main() {
     expect(repository.savedRoom?.units, 5);
   });
 
+  testWidgets('Admin can add starter rooms for hotels without rooms', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeHotelRepository();
+    await tester.pumpWidget(
+      MaterialApp(home: AdminInventoryScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 hotels have no room category'), findsOneWidget);
+    await tester.tap(find.text('Add missing rooms'));
+    await tester.pumpAndSettle();
+
+    expect(repository.addStarterRoomsCalls, 1);
+    expect(find.text('Added starter rooms for 2 hotels.'), findsOneWidget);
+  });
+
   testWidgets('Home shows recommendations and resort listings', (tester) async {
     await tester.pumpWidget(_mainContainerApp());
     await tester.pumpAndSettle();
@@ -308,9 +399,16 @@ void main() {
 }
 
 class _FakeHotelRepository implements HotelRepository {
+  _FakeHotelRepository({List<Booking> initialBookings = const []})
+    : _bookingList = [...initialBookings];
+
   Map<String, Object?>? addedHotel;
   RoomType? savedRoom;
   int seedDemoCatalogCalls = 0;
+  int seedDemoBookingsCalls = 0;
+  int addStarterRoomsCalls = 0;
+  Booking? updatedBooking;
+  final List<Booking> _bookingList;
   final List<RoomType> _roomList = [
     const RoomType(
       id: 'room-1',
@@ -372,6 +470,28 @@ class _FakeHotelRepository implements HotelRepository {
   }
 
   @override
+  Future<int> addStarterRoomsForHotelsWithoutRooms() async {
+    addStarterRoomsCalls++;
+    final hotelsWithRooms = _roomList.map((room) => room.hotelId).toSet();
+    final missingHotels = _hotelList
+        .where((hotel) => !hotelsWithRooms.contains(hotel.id))
+        .toList();
+    for (final hotel in missingHotels) {
+      _roomList.add(
+        RoomType(
+          id: 'starter-${hotel.id}',
+          hotelId: hotel.id,
+          hotelTitle: hotel.title,
+          title: 'Standard Room',
+          price: hotel.price,
+          units: 3,
+        ),
+      );
+    }
+    return missingHotels.length;
+  }
+
+  @override
   Stream<List<RoomType>> watchRooms({String? hotelId}) => Stream.value(
     _roomList
         .where((room) => hotelId == null || room.hotelId == hotelId)
@@ -388,17 +508,61 @@ class _FakeHotelRepository implements HotelRepository {
   Future<void> deleteRoom(String id) async {}
 
   @override
-  Stream<List<Booking>> watchBookings({String? userId}) =>
-      Stream.value(const []);
+  Stream<List<Booking>> watchBookings({String? userId}) => Stream.value(
+    _bookingList
+        .where((booking) => userId == null || booking.userId == userId)
+        .toList(),
+  );
 
   @override
-  Future<String> createBooking(Booking booking) async => 'booking-1';
+  Future<String> createBooking(Booking booking) async {
+    _bookingList.add(booking.withId('booking-1'));
+    return 'booking-1';
+  }
 
   @override
-  Future<void> updateBookingStatus(String id, String status) async {}
+  Future<int> seedDemoBookings() async {
+    seedDemoBookingsCalls++;
+    return 3;
+  }
 
   @override
-  Future<void> deleteBooking(String id) async {}
+  Future<void> updateBooking(Booking booking) async {
+    updatedBooking = booking;
+  }
+
+  @override
+  Future<void> updateBookingStatus(String id, String status) async {
+    final index = _bookingList.indexWhere((booking) => booking.id == id);
+    if (index >= 0) {
+      final booking = _bookingList[index];
+      _bookingList[index] = Booking(
+        id: booking.id,
+        userId: booking.userId,
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail,
+        hotelId: booking.hotelId,
+        hotelTitle: booking.hotelTitle,
+        hotelLocation: booking.hotelLocation,
+        hotelImageUrl: booking.hotelImageUrl,
+        roomId: booking.roomId,
+        roomTitle: booking.roomTitle,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        adults: booking.adults,
+        children: booking.children,
+        total: booking.total,
+        paymentMethod: booking.paymentMethod,
+        status: status,
+        createdAt: booking.createdAt,
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteBooking(String id) async {
+    _bookingList.removeWhere((booking) => booking.id == id);
+  }
 
   @override
   Stream<List<Review>> watchReviews({String? hotelId}) =>

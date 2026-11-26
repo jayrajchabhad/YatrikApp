@@ -23,6 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _profileLoaded = false;
   bool _saving = false;
   String? _errorMessage;
+  String _photoUrl = '';
 
   @override
   void dispose() {
@@ -47,9 +48,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           name: _nameController.text.trim(),
           email: user.email ?? '',
           phone: _phoneController.text.trim(),
+          photoUrl: _photoUrl,
         ),
       );
       await user.updateDisplayName(_nameController.text.trim());
+      if (user.photoURL != (_photoUrl.isEmpty ? null : _photoUrl)) {
+        await user.updatePhotoURL(_photoUrl.isEmpty ? null : _photoUrl);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -70,6 +75,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    final controller = TextEditingController(text: _photoUrl);
+    final photoUrl = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change profile photo'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            labelText: 'Public image URL',
+            hintText: 'https://example.com/photo.jpg',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ''),
+            child: const Text('Remove'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (photoUrl != null && mounted) {
+      setState(() {
+        _photoUrl = photoUrl.trim();
+        _errorMessage = null;
+      });
     }
   }
 
@@ -104,6 +148,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             if (!_profileLoaded) {
               _nameController.text = profile?.name ?? user.displayName ?? '';
               _phoneController.text = profile?.phone ?? '';
+              _photoUrl = profile?.photoUrl.isNotEmpty == true
+                  ? profile!.photoUrl
+                  : user.photoURL ?? '';
               _profileLoaded = true;
             }
             return ListView(
@@ -112,35 +159,85 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const Text(
                   'Edit Profile',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark,
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Center(
-                  child: CircleAvatar(
-                    radius: 46,
-                    child: Icon(Icons.person, size: 52),
+                const SizedBox(height: 22),
+                Center(
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 48,
+                            backgroundColor: Colors.white,
+                            child: ClipOval(
+                              child: SizedBox(
+                                width: 96,
+                                height: 96,
+                                child: _photoUrl.isEmpty
+                                    ? const Icon(
+                                        Icons.person,
+                                        size: 54,
+                                        color: AppColors.primaryDark,
+                                      )
+                                    : Image.network(
+                                        _photoUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.person,
+                                          size: 54,
+                                          color: AppColors.primaryDark,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          Material(
+                            color: AppColors.primaryDark,
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              tooltip: 'Change profile photo',
+                              onPressed: _changePhoto,
+                              icon: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: _changePhoto,
+                        child: const Text('CHANGE PROFILE PHOTO'),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
+                const _ProfileFieldLabel('FULL NAME'),
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                  decoration: const InputDecoration(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                const _ProfileFieldLabel('PHONE NUMBER'),
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
+                  decoration: const InputDecoration(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                const _ProfileFieldLabel('EMAIL ADDRESS'),
                 TextFormField(
                   initialValue: user.email ?? '',
                   readOnly: true,
                   decoration: const InputDecoration(
-                    labelText: 'Email address (managed by sign-in)',
+                    hintText: 'Email managed by sign-in',
                   ),
                 ),
                 if (_errorMessage != null) ...[
@@ -155,7 +252,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   onPressed: _saving ? null : () => _save(user),
                   child: _saving
                       ? const CircularProgressIndicator()
-                      : const Text('Save changes'),
+                      : const Text('SAVE CHANGES'),
                 ),
               ],
             );
@@ -164,4 +261,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
     );
   }
+}
+
+class _ProfileFieldLabel extends StatelessWidget {
+  const _ProfileFieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.7,
+        color: AppColors.textSecondary,
+      ),
+    ),
+  );
 }

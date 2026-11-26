@@ -69,6 +69,31 @@ class AdminInventoryScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _addStarterRooms(BuildContext context) async {
+    try {
+      final added = await repository.addStarterRoomsForHotelsWithoutRooms();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            added == 0
+                ? 'Every hotel already has a room category.'
+                : 'Added starter rooms for $added hotels.',
+          ),
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not add starter rooms: ${error.message ?? error.code}',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
@@ -114,16 +139,17 @@ class AdminInventoryScreen extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               final rooms = roomSnapshot.data!;
+              final hotelsWithRooms = rooms.map((room) => room.hotelId).toSet();
+              final hotelsWithoutRooms = hotels
+                  .where((hotel) => !hotelsWithRooms.contains(hotel.id))
+                  .length;
               final totalUnits = rooms.fold<int>(
                 0,
                 (total, room) => total + room.units,
               );
               final averageRate = rooms.isEmpty
                   ? 0.0
-                  : rooms.fold<double>(
-                          0,
-                          (total, room) => total + room.price,
-                        ) /
+                  : rooms.fold<double>(0, (total, room) => total + room.price) /
                         rooms.length;
               return ListView(
                 padding: const EdgeInsets.all(20),
@@ -136,9 +162,43 @@ class AdminInventoryScreen extends StatelessWidget {
                   _InventoryMetricCard(
                     label: 'AVERAGE NIGHTLY RATE',
                     value: '₹${averageRate.toStringAsFixed(0)}',
-                    subtitle: '${rooms.length} categories across ${hotels.length} hotels',
+                    subtitle:
+                        '${rooms.length} categories across ${hotels.length} hotels',
                     icon: Icons.currency_rupee_rounded,
                   ),
+                  if (hotelsWithoutRooms > 0) ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$hotelsWithoutRooms ${hotelsWithoutRooms == 1 ? 'hotel has' : 'hotels have'} no room category',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Add a sample Standard Room so these stays can be booked.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _addStarterRooms(context),
+                              icon: const Icon(Icons.add_home_outlined),
+                              label: const Text('Add missing rooms'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
