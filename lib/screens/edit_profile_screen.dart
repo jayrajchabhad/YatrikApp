@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/hotel_repository.dart';
 import '../data/auth_session.dart';
 import '../theme/app_theme.dart';
+import '../widgets/image_upload_field.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({
@@ -78,45 +79,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Future<void> _changePhoto() async {
-    final controller = TextEditingController(text: _photoUrl);
-    final photoUrl = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change profile photo'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(
-            labelText: 'Public image URL',
-            hintText: 'https://example.com/photo.jpg',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ''),
-            child: const Text('Remove'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (photoUrl != null && mounted) {
-      setState(() {
-        _photoUrl = photoUrl.trim();
-        _errorMessage = null;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = currentFirebaseUserOrNull();
@@ -165,58 +127,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 22),
-                Center(
-                  child: Column(
-                    children: [
-                      Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          CircleAvatar(
-                            radius: 48,
-                            backgroundColor: Colors.white,
-                            child: ClipOval(
-                              child: SizedBox(
-                                width: 96,
-                                height: 96,
-                                child: _photoUrl.isEmpty
-                                    ? const Icon(
-                                        Icons.person,
-                                        size: 54,
-                                        color: AppColors.primaryDark,
-                                      )
-                                    : Image.network(
-                                        _photoUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => const Icon(
-                                          Icons.person,
-                                          size: 54,
-                                          color: AppColors.primaryDark,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
-                          Material(
-                            color: AppColors.primaryDark,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              tooltip: 'Change profile photo',
-                              onPressed: _changePhoto,
-                              icon: const Icon(
-                                Icons.camera_alt_outlined,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      TextButton(
-                        onPressed: _changePhoto,
-                        child: const Text('CHANGE PROFILE PHOTO'),
-                      ),
-                    ],
-                  ),
+                ImageUploadField(
+                  circular: true,
+                  buttonLabel: 'CHANGE PROFILE PHOTO',
+                  initialImageUrl: _photoUrl,
+                  storageFolder: 'profile-images/${user.uid}',
+                  onUploaded: (url) => setState(() => _photoUrl = url),
                 ),
                 const SizedBox(height: 14),
                 const _ProfileFieldLabel('FULL NAME'),

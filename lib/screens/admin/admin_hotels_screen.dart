@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../data/hotel_repository.dart';
 import '../../resources/app_images.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/image_upload_field.dart';
 
 class AdminHotelsScreen extends StatefulWidget {
   const AdminHotelsScreen({
@@ -569,10 +570,10 @@ class _HotelEditorSheetState extends State<_HotelEditorSheet> {
                 },
               ),
               const SizedBox(height: 12),
-              _buildTextField(
-                controller: _imageUrlController,
-                label: 'Image URL (optional)',
-                keyboardType: TextInputType.url,
+              ImageUploadField(
+                storageFolder: 'hotel-images',
+                initialImageUrl: _imageUrlController.text,
+                onUploaded: (url) => _imageUrlController.text = url,
               ),
               const SizedBox(height: 12),
               _buildTextField(

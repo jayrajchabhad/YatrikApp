@@ -1,1 +1,28 @@
-{"firestore":{"rules":"firestore.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"yatrik-e2afd","appId":"1:731834306632:android:83cd5cccaabd2d7fedc87d","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"yatrik-e2afd","configurations":{"android":"1:731834306632:android:83cd5cccaabd2d7fedc87d","web":"1:731834306632:web:de35110ef7f36348edc87d"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "yatrik-e2afd",
+          "appId": "1:731834306632:android:83cd5cccaabd2d7fedc87d",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "yatrik-e2afd",
+          "configurations": {
+            "android": "1:731834306632:android:83cd5cccaabd2d7fedc87d",
+            "web": "1:731834306632:web:de35110ef7f36348edc87d"
+          }
+        }
+      }
+    }
+  }
+}

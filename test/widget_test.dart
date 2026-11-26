@@ -345,13 +345,18 @@ void main() {
 
     expect(find.text('Select your room'), findsOneWidget);
     expect(find.text('Standard Room'), findsOneWidget);
-    await tester.ensureVisible(find.text('BOOK NOW'));
+    await tester.ensureVisible(find.text('SELECT'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('BOOK NOW'));
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose Your\nSanctuary'), findsOneWidget);
+    await tester.tap(find.text('SELECT ROOM'));
     await tester.pumpAndSettle();
 
     expect(find.text('Review Booking'), findsOneWidget);
     expect(find.text('2 Adults, 0 Children · 2 nights'), findsOneWidget);
+    expect(find.text('₹4800.00'), findsOneWidget);
   });
 
   testWidgets('Saved escapes require a signed-in account', (tester) async {

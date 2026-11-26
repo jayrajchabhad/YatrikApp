@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../data/hotel_repository.dart';
 import '../../resources/app_images.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/image_upload_field.dart';
 
 class AdminInventoryScreen extends StatelessWidget {
   const AdminInventoryScreen({
@@ -607,12 +608,10 @@ class _RoomEditorSheetState extends State<_RoomEditorSheet> {
               decoration: const InputDecoration(labelText: 'Description'),
               maxLines: 2,
             ),
-            TextFormField(
-              controller: _imageController,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Image URL (optional)',
-              ),
+            ImageUploadField(
+              storageFolder: 'room-images',
+              initialImageUrl: _imageController.text,
+              onUploaded: (url) => _imageController.text = url,
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),

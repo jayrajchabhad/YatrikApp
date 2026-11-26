@@ -10,10 +10,18 @@ class ChooseSanctuaryScreen extends StatelessWidget {
     super.key,
     required this.hotel,
     this.repository = const FirestoreHotelRepository(),
+    this.initialCheckIn,
+    this.initialCheckOut,
+    this.initialAdults = 2,
+    this.initialChildren = 0,
   });
 
   final Hotel hotel;
   final HotelRepository repository;
+  final DateTime? initialCheckIn;
+  final DateTime? initialCheckOut;
+  final int initialAdults;
+  final int initialChildren;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +102,15 @@ class ChooseSanctuaryScreen extends StatelessWidget {
                 ...rooms.map(
                   (room) => Padding(
                     padding: const EdgeInsets.only(bottom: 20),
-                    child: _RoomCard(hotel: hotel, room: room, repository: repository),
+                    child: _RoomCard(
+                      hotel: hotel,
+                      room: room,
+                      repository: repository,
+                      initialCheckIn: initialCheckIn,
+                      initialCheckOut: initialCheckOut,
+                      initialAdults: initialAdults,
+                      initialChildren: initialChildren,
+                    ),
                   ),
                 ),
             ],
@@ -110,15 +126,24 @@ class _RoomCard extends StatelessWidget {
     required this.hotel,
     required this.room,
     required this.repository,
+    required this.initialCheckIn,
+    required this.initialCheckOut,
+    required this.initialAdults,
+    required this.initialChildren,
   });
 
   final Hotel hotel;
   final RoomType room;
   final HotelRepository repository;
+  final DateTime? initialCheckIn;
+  final DateTime? initialCheckOut;
+  final int initialAdults;
+  final int initialChildren;
 
   @override
   Widget build(BuildContext context) {
-    final fallbackAsset = room.title.toLowerCase().contains('deluxe') ||
+    final fallbackAsset =
+        room.title.toLowerCase().contains('deluxe') ||
             room.title.toLowerCase().contains('suite')
         ? AppImages.assetDeluxeOcean
         : AppImages.assetStandardRoom;
@@ -256,21 +281,22 @@ class _RoomCard extends StatelessWidget {
                     onPressed: !isAvailable
                         ? null
                         : () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ReviewBookingScreen(
-                                  hotel: hotel,
-                                  room: room,
-                                  repository: repository,
-                                ),
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewBookingScreen(
+                                hotel: hotel,
+                                room: room,
+                                repository: repository,
+                                initialCheckIn: initialCheckIn,
+                                initialCheckOut: initialCheckOut,
+                                initialAdults: initialAdults,
+                                initialChildren: initialChildren,
                               ),
                             ),
+                          ),
                     child: const Text(
                       'SELECT ROOM',
-                      style: TextStyle(
-                        fontSize: 13,
-                        letterSpacing: 1.2,
-                      ),
+                      style: TextStyle(fontSize: 13, letterSpacing: 1.2),
                     ),
                   ),
                 ),
@@ -293,8 +319,6 @@ class _RoomMessage extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     message,
     textAlign: TextAlign.center,
-    style: TextStyle(
-      color: isError ? Colors.red : AppColors.textSecondary,
-    ),
+    style: TextStyle(color: isError ? Colors.red : AppColors.textSecondary),
   );
 }

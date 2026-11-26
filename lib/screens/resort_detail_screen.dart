@@ -31,6 +31,25 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
 
   int get _nights => _checkOut.difference(_checkIn).inDays;
 
+  void _openSanctuary({RoomType? selectedRoom}) {
+    if (selectedRoom != null) {
+      setState(() => _selectedRoomId = selectedRoom.id);
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChooseSanctuaryScreen(
+          hotel: widget.hotel,
+          repository: widget.repository,
+          initialCheckIn: _checkIn,
+          initialCheckOut: _checkOut,
+          initialAdults: _adults,
+          initialChildren: _children,
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickDates() async {
     final result = await Navigator.push<DatePickerResult>(
       context,
@@ -226,15 +245,7 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChooseSanctuaryScreen(
-                            hotel: hotel,
-                            repository: widget.repository,
-                          ),
-                        ),
-                      ),
+                      onPressed: () => _openSanctuary(),
                       child: const Text('View all'),
                     ),
                   ],
@@ -268,8 +279,7 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
                             selected: selectedRoom?.id == room.id,
                           ),
                         ),
-                        if (selectedRoom != null)
-                          _bookingSummary(selectedRoom),
+                        if (selectedRoom != null) _bookingSummary(selectedRoom),
                       ],
                     );
                   },
@@ -349,80 +359,80 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
         ? AppImages.assetDeluxeOcean
         : AppImages.assetStandardRoom;
     return Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    clipBehavior: Clip.antiAlias,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
-      side: BorderSide(
-        color: selected ? AppColors.primaryNavy : AppColors.borderLight,
-        width: selected ? 1.5 : 1,
-      ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppImages.buildImage(
-          pathOrUrl: room.imageUrl.trim().isEmpty
-              ? fallbackAsset
-              : room.imageUrl.trim(),
-          fallbackUrl: widget.hotel.imageUrl,
-          height: 150,
-          width: double.infinity,
-          fit: BoxFit.cover,
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: selected ? AppColors.primaryNavy : AppColors.borderLight,
+          width: selected ? 1.5 : 1,
         ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      room.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppImages.buildImage(
+            pathOrUrl: room.imageUrl.trim().isEmpty
+                ? fallbackAsset
+                : room.imageUrl.trim(),
+            fallbackUrl: widget.hotel.imageUrl,
+            height: 150,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        room.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                        ),
                       ),
                     ),
-                  ),
+                    Text(
+                      '₹${room.price.toStringAsFixed(0)} / night',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                if (room.description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
                   Text(
-                    '₹${room.price.toStringAsFixed(0)} / night',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    room.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
-              ),
-              if (room.description.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
-                  room.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  room.units > 0 ? '${room.units} available' : 'Sold out',
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                room.units > 0 ? '${room.units} available' : 'Sold out',
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: room.units <= 0
-                      ? null
-                      : () => setState(() => _selectedRoomId = room.id),
-                  child: Text(selected ? 'SELECTED' : 'SELECT ROOM'),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: room.units <= 0
+                        ? null
+                        : () => _openSanctuary(selectedRoom: room),
+                    child: const Text('SELECT'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
   }
 
   Widget _bookingSummary(RoomType room) => Card(
@@ -488,7 +498,11 @@ class _ResortDetailScreenState extends State<ResortDetailScreen> {
           const Divider(height: 22),
           Row(
             children: [
-              Expanded(child: Text('₹${room.price.toStringAsFixed(0)} × $_nights nights')),
+              Expanded(
+                child: Text(
+                  '₹${room.price.toStringAsFixed(0)} × $_nights nights',
+                ),
+              ),
               Text(
                 '₹${(room.price * _nights).toStringAsFixed(0)}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
